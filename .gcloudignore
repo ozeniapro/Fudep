@@ -1,4 +1,6 @@
-.gcloudignore
-.git
-.gitignore
-node_modules
+node_modules/
+dist/
+.git/
+.env
+.env.local
+.DS_Store
