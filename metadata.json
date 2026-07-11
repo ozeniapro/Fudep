@@ -1,0 +1,6 @@
+{
+  "name": "Fudep",
+  "description": "Marketplace de prestations de beauté pour découvrir et réserver des prothésistes ongulaires via un flux visuel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
