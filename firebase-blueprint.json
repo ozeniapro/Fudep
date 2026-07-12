@@ -90,6 +90,10 @@
       "schema": "BookingRequest",
       "description": "Customer reservations with status and deposit payment data."
     },
+    "booking/{id}": {
+      "schema": "BookingRequest",
+      "description": "Customer reservations (singular collection alias)."
+    },
     "accounts/{email}": {
       "schema": "UserAccount",
       "description": "Users registry keyed by lowercased emails."

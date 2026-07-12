@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import logoPuzzle from './assets/images/fudep_puzzle_logo_1783249722185.jpg';
-import logoNormal from './assets/images/fudep_logo_1782931548274.jpg';
 import { 
   Heart, 
   Share2, 
@@ -446,8 +444,7 @@ export default function App() {
   // Selected Post Detail Modal
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
 
-  // Logo fallback URL handling
-  const [logoUrl, setLogoUrl] = useState<string>(logoPuzzle);
+  // Logo component is used inline instead of local state to prevent caching issues.
 
   // Booking process flow
   const [bookingTarget, setBookingTarget] = useState<{
@@ -476,19 +473,22 @@ export default function App() {
   });
 
   // --- CUSTOMIZABLE FAQ STATE & SERVICES ADDITION STATE ---
-  const DEFAULT_FAQ = [
+  const DEFAULT_FAQ: FAQItem[] = [
     {
       id: 'faq_1',
+      category: 'Réservations & Acomptes',
       question: 'Comment fonctionnent les réservations et les acomptes ?',
       answer: 'Pour réserver une prestation, vous réglez un acompte de 30% en ligne de manière sécurisée via Stripe. Le solde restant de 70% est à verser directement auprès du prestataire le jour de votre rendez-vous.'
     },
     {
       id: 'faq_2',
+      category: 'Annulations & Reports',
       question: 'Puis-je annuler ou reporter mon rendez-vous ?',
       answer: "Oui, vous pouvez annuler votre réservation gratuitement jusqu'à 24 heures avant l'heure du rendez-vous et votre acompte de 30% vous sera intégralement remboursé. En cas d'annulation moins de 24h à l'avance, l'acompte sera conservé par le prestataire à titre de dédommagement."
     },
     {
       id: 'faq_3',
+      category: 'Prestataires & Contact',
       question: "Comment contacter mon prestataire d'ongles ?",
       answer: "Une fois votre demande de réservation validée, vous recevrez les coordonnées complètes du prestataire (numéro de téléphone et adresse exacte) pour finaliser l'organisation de votre séance."
     }
@@ -506,18 +506,31 @@ export default function App() {
     }
   }, [faqs, loadingDb]);
 
-  const [newFaqForm, setNewFaqForm] = useState({ question: '', answer: '' });
+  const [newFaqForm, setNewFaqForm] = useState({ category: '', question: '', answer: '' });
+
+  const groupedFaqs = useMemo(() => {
+    const groups: Record<string, FAQItem[]> = {};
+    faqs.forEach(faq => {
+      const cat = faq.category || 'Général';
+      if (!groups[cat]) {
+        groups[cat] = [];
+      }
+      groups[cat].push(faq);
+    });
+    return groups;
+  }, [faqs]);
 
   const handleCreateFaq = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFaqForm.question || !newFaqForm.answer) return;
     const newFaq: FAQItem = {
       id: 'faq_' + Date.now(),
+      category: newFaqForm.category.trim() || 'Général',
       question: newFaqForm.question,
       answer: newFaqForm.answer
     };
     setFaqs(prev => [...prev, newFaq]);
-    setNewFaqForm({ question: '', answer: '' });
+    setNewFaqForm({ category: '', question: '', answer: '' });
   };
 
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
@@ -1840,17 +1853,9 @@ export default function App() {
           <div className="flex justify-between items-center">
             {/* Logo */}
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setSelectedTechId(null); setSelectedPostId(null); setActiveTab('feed'); }}>
-              <img 
-                src={logoUrl} 
-                alt="Fudep Logo" 
-                className="w-10 h-10 object-contain rounded-lg shadow-sm border border-slate-100"
-                referrerPolicy="no-referrer"
-                onError={() => {
-                  if (logoUrl !== logoNormal) {
-                    setLogoUrl(logoNormal);
-                  }
-                }}
-              />
+              <div className="w-10 h-10 flex items-center justify-center rounded-lg shadow-sm border border-slate-100 bg-white">
+                <FudepLogo className="w-8 h-8" />
+              </div>
               <div className="flex flex-col">
                 <h1 className="text-xl font-extrabold text-[#0f4c81] tracking-tight font-serif italic leading-none">Fudep</h1>
                 <span className="text-[7.5px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Nails Marketplace</span>
@@ -2674,24 +2679,34 @@ export default function App() {
                         <h3 className="font-serif font-bold text-slate-800 text-sm mb-2.5 pb-1 border-b border-slate-100 flex items-center gap-1.5">
                           💡 Foire Aux Questions (FAQ)
                         </h3>
-                        <div className="space-y-2">
-                          {faqs.map(faq => (
-                            <div key={faq.id} className="border border-slate-100 rounded-lg overflow-hidden">
-                              <button
-                                type="button"
-                                onClick={() => setExpandedFaq(expandedFaq === faq.id ? null : faq.id)}
-                                className="w-full p-2.5 bg-slate-50/50 hover:bg-slate-50 font-bold text-slate-700 flex justify-between items-center text-[11px] transition-all cursor-pointer text-left gap-2"
-                              >
-                                <span>{faq.question}</span>
-                                <span className="text-slate-400 shrink-0">{expandedFaq === faq.id ? '▲' : '▼'}</span>
-                              </button>
-                              {expandedFaq === faq.id && (
-                                <div className="p-3 bg-white text-slate-600 text-[11px] border-t border-slate-100 whitespace-pre-wrap leading-relaxed">
-                                  {faq.answer}
+                        <div className="space-y-4">
+                          {Object.keys(groupedFaqs).map(category => {
+                            const items = groupedFaqs[category] || [];
+                            return (
+                              <div key={category} className="space-y-1.5">
+                                <h4 className="text-[10px] font-extrabold text-[#0f4c81]/80 uppercase tracking-wider pl-1 border-l-2 border-[#0f4c81]/30 ml-0.5 mb-2">{category}</h4>
+                                <div className="space-y-2">
+                                  {items.map(faq => (
+                                    <div key={faq.id} className="border border-slate-100 rounded-lg overflow-hidden">
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedFaq(expandedFaq === faq.id ? null : faq.id)}
+                                        className="w-full p-2.5 bg-slate-50/50 hover:bg-slate-50 font-bold text-slate-700 flex justify-between items-center text-[11px] transition-all cursor-pointer text-left gap-2"
+                                      >
+                                        <span>{faq.question}</span>
+                                        <span className="text-slate-400 shrink-0">{expandedFaq === faq.id ? '▲' : '▼'}</span>
+                                      </button>
+                                      {expandedFaq === faq.id && (
+                                        <div className="p-3 bg-white text-slate-600 text-[11px] border-t border-slate-100 whitespace-pre-wrap leading-relaxed">
+                                          {faq.answer}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
                                 </div>
-                              )}
-                            </div>
-                          ))}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -3838,7 +3853,12 @@ export default function App() {
                       faqs.map(faq => (
                         <div key={faq.id} className="bg-slate-50 border border-slate-100 p-2.5 rounded-xl flex justify-between items-start gap-2.5">
                           <div className="flex-1 min-w-0 text-[11px]">
-                            <p className="font-bold text-slate-800">{faq.question}</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="bg-[#0f4c81]/10 text-[#0f4c81] text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
+                                {faq.category || 'Général'}
+                              </span>
+                              <p className="font-bold text-slate-800">{faq.question}</p>
+                            </div>
                             <p className="text-slate-500 mt-1 leading-relaxed whitespace-pre-wrap">{faq.answer}</p>
                           </div>
                           <button
@@ -3857,6 +3877,17 @@ export default function App() {
                   {/* Form to create a FAQ */}
                   <form onSubmit={handleCreateFaq} className="flex flex-col gap-3 text-xs">
                     <p className="font-bold text-slate-700 text-xs border-l-2 border-[#0f4c81] pl-1.5">Ajouter une nouvelle question :</p>
+                    <div>
+                      <label className="block text-slate-500 font-semibold mb-1">Catégorie</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ex: Paiement, Réservations, Annulations" 
+                        required 
+                        value={newFaqForm.category}
+                        onChange={e => setNewFaqForm({ ...newFaqForm, category: e.target.value })}
+                        className="w-full border border-slate-200 p-2 rounded-lg text-slate-800"
+                      />
+                    </div>
                     <div>
                       <label className="block text-slate-500 font-semibold mb-1">Question</label>
                       <input 
@@ -4072,17 +4103,9 @@ export default function App() {
           <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl animate-scale-up text-slate-800 border border-slate-100">
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-center gap-2">
-                <img 
-                  src={logoUrl} 
-                  alt="Fudep Logo" 
-                  className="w-8 h-8 object-contain rounded-lg border border-slate-100 shadow-xs"
-                  referrerPolicy="no-referrer"
-                  onError={() => {
-                    if (logoUrl !== logoNormal) {
-                      setLogoUrl(logoNormal);
-                    }
-                  }}
-                />
+                <div className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-100 shadow-xs bg-white">
+                  <FudepLogo className="w-6 h-6" />
+                </div>
                 <h3 className="text-base font-bold font-serif text-[#0f4c81]">Accéder à Fudep</h3>
               </div>
               <button 
@@ -4760,5 +4783,36 @@ export default function App() {
       )}
 
     </div>
+  );
+}
+
+export function FudepLogo({ className = "w-10 h-10" }: { className?: string }) {
+  return (
+    <svg 
+      viewBox="0 0 100 100" 
+      className={className} 
+      fill="none" 
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {/* Piece 4 (Bottom Right, Dark Blue) */}
+      <rect x="50" y="60" width="32" height="32" rx="6" fill="#0f4c81" />
+      
+      {/* Piece 2 (Top Right, Light Blue) */}
+      <rect x="50" y="28" width="32" height="32" rx="6" fill="#8bc6fc" />
+      <circle cx="66" cy="15" r="6.5" fill="#8bc6fc" />
+      <rect x="64" y="19" width="4" height="10" fill="#8bc6fc" rx="1" />
+      <circle cx="66" cy="60" r="4.5" fill="#8bc6fc" />
+      
+      {/* Piece 1 (Top Left, Dark Blue) */}
+      <rect x="18" y="28" width="32" height="32" rx="6" fill="#0f4c81" />
+      <circle cx="34" cy="15" r="6.5" fill="#0f4c81" />
+      <rect x="32" y="19" width="4" height="10" fill="#0f4c81" rx="1" />
+      <circle cx="50" cy="44" r="4.5" fill="#0f4c81" />
+      
+      {/* Piece 3 (Bottom Left, Light Blue) */}
+      <rect x="18" y="60" width="32" height="32" rx="6" fill="#8bc6fc" />
+      <circle cx="34" cy="60" r="4.5" fill="#8bc6fc" />
+      <circle cx="50" cy="76" r="4.5" fill="#8bc6fc" />
+    </svg>
   );
 }

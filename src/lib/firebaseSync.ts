@@ -129,16 +129,19 @@ export async function seedDatabaseIfEmpty() {
         list: [
           {
             id: 'faq_1',
+            category: 'Réservations & Acomptes',
             question: 'Comment fonctionnent les réservations et les acomptes ?',
             answer: 'Pour réserver une prestation, vous réglez un acompte de 30% en ligne de manière sécurisée via Stripe. Le solde restant de 70% est à verser directement auprès du prestataire le jour de votre rendez-vous.'
           },
           {
             id: 'faq_2',
+            category: 'Annulations & Reports',
             question: 'Puis-je annuler ou reporter mon rendez-vous ?',
             answer: "Oui, vous pouvez annuler votre réservation gratuitement jusqu'à 24 heures avant l'heure du rendez-vous et votre acompte de 30% vous sera intégralement remboursé. En cas d'annulation moins de 24h à l'avance, l'acompte sera conservé par le prestataire à titre de dédommagement."
           },
           {
             id: 'faq_3',
+            category: 'Prestataires & Contact',
             question: "Comment contacter mon prestataire d'ongles ?",
             answer: "Une fois votre demande de réservation validée, vous recevrez les coordonnées complètes du prestataire (numéro de téléphone et adresse exacte) pour finaliser l'organisation de votre séance."
           }
@@ -374,7 +377,9 @@ export async function deletePostFromDb(postId: string) {
 export async function saveBookingToDb(booking: BookingRequest) {
   const path = `bookings/${booking.id}`;
   try {
+    // Write to both 'bookings' (plural) and 'booking' (singular) to ensure it is present under either collection name
     await setDoc(doc(db, 'bookings', booking.id), cleanForFirestore(booking));
+    await setDoc(doc(db, 'booking', booking.id), cleanForFirestore(booking));
 
     // Double-write to 'reservations' collection as requested by the user
     const resStatus = booking.status === 'confirmed' ? 'confirmed' : booking.status === 'refused' ? 'refused' : booking.status === 'proposed' ? 'pending' : 'pending';
