@@ -1,0 +1,29 @@
+# Configuration de build et de déploiement automatique pour Google Cloud Build
+steps:
+  # Étape 1 : Construire l'image Docker
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/fudep:$COMMIT_SHA', '.']
+  
+  # Étape 2 : Publier l'image Docker sur le registre d'images (GCR)
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/fudep:$COMMIT_SHA']
+
+  # Étape 3 : Déployer l'image sur Google Cloud Run
+  # NOTE : Vous pouvez adapter le nom du service 'fudep-beauty' et la région 'europe-west1'
+  # si votre service a un nom ou une région différente sur votre console Google Cloud.
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'fudep-beauty' # <-- Remplacez par le nom de votre service Cloud Run s'il est différent (ex: 'fudep')
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/fudep:$COMMIT_SHA'
+      - '--region'
+      - 'europe-west1' # <-- Remplacez par votre région de déploiement (ex: 'europe-west2')
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+
+images:
+  - 'gcr.io/$PROJECT_ID/fudep:$COMMIT_SHA'
