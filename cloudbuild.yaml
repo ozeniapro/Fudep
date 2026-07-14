@@ -1,32 +1,31 @@
 # Configuration de build et de déploiement automatique pour Google Cloud Build
 steps:
-  # Étape 1 : Construire l'image Docker
+  # 1. Build the container image
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', 'gcr.io/$PROJECT_ID/fudep:$COMMIT_SHA', '.']
-  
-  # Étape 2 : Publier l'image Docker sur le registre d'images (GCR)
+
+  # 2. Push the image to the registry
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/fudep:$COMMIT_SHA']
 
-  # Étape 3 : Déployer l'image sur Google Cloud Run
-  # NOTE : Vous devez adapter le nom du service 'fudep-beauty' et la région 'europe-west2'
-  # si votre service a un nom ou une région différente sur votre console Google Cloud.
+  # 3. Deploy to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
-      - 'fudep-beauty' # <-- IMPORTANT: Remplacez 'fudep-beauty' par le nom exact de votre service Cloud Run s'il est différent (ex: 'fudep')
+      - 'fudep-beauty'
       - '--image'
       - 'gcr.io/$PROJECT_ID/fudep:$COMMIT_SHA'
       - '--region'
-      - 'europe-west2' # <-- IMPORTANT: Changé en 'europe-west2' pour correspondre à votre région d'application
+      - 'europe-west1'
       - '--platform'
       - 'managed'
-      - '--allow-unauthenticated'
+      - '--quiet'
+
+# This section fixes the "invalid argument" error regarding logs
+options:
+  logging: CLOUD_LOGGING_ONLY
 
 images:
   - 'gcr.io/$PROJECT_ID/fudep:$COMMIT_SHA'
-
-options:
-  logging: CLOUD_LOGGING_ONLY
