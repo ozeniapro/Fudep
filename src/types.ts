@@ -46,7 +46,7 @@ export interface BookingRequest {
   desiredTime: string;
   alternativeAvailabilities: string;
   message: string;
-  status: 'pending' | 'confirmed' | 'refused' | 'proposed';
+  status: 'pending' | 'confirmed' | 'refused' | 'proposed' | 'completed';
   createdAt: string;
   depositPaid?: number;
   cardUsed?: string;

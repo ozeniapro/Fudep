@@ -127,6 +127,37 @@ const formatToFrenchDate = (dateStr: string) => {
   return dateStr;
 };
 
+const isSlotPast = (slotStr: string): boolean => {
+  if (!slotStr) return false;
+  try {
+    const parts = slotStr.split(' à ');
+    if (parts.length === 2) {
+      let [datePart, timePart] = parts;
+      if (datePart.includes('-')) {
+        const dParts = datePart.split('-');
+        if (dParts[0].length !== 4 && dParts[2].length === 4) {
+          datePart = `${dParts[2]}-${dParts[1]}-${dParts[0]}`;
+        }
+      } else if (datePart.includes('/')) {
+        const dParts = datePart.split('/');
+        if (dParts[2].length === 4) {
+          datePart = `${dParts[2]}-${dParts[1]}-${dParts[0]}`;
+        }
+      }
+      const slotDateTime = new Date(`${datePart}T${timePart}`);
+      if (!isNaN(slotDateTime.getTime())) {
+        return slotDateTime < new Date();
+      }
+    }
+  } catch (err) {}
+  return false;
+};
+
+const isBookingPast = (dateStr: string, timeStr: string): boolean => {
+  if (!dateStr || !timeStr) return false;
+  return isSlotPast(`${dateStr} à ${timeStr}`);
+};
+
 const parseHashtags = (tagsInput: string, captionInput: string): string[] => {
   const extracted: string[] = [];
   
@@ -469,7 +500,8 @@ export default function App() {
     cardNumber: '',
     cardExpiry: '',
     cardCvc: '',
-    modelPhoto: ''
+    modelPhoto: '',
+    commitmentCheck: false
   });
 
   // --- CUSTOMIZABLE FAQ STATE & SERVICES ADDITION STATE ---
@@ -650,6 +682,26 @@ export default function App() {
       setIsAdminView(false);
     }
   }, [session, isAdminView]);
+
+  // Auto-complete past bookings on initial load
+  useEffect(() => {
+    if (loadingDb || bookings.length === 0) return;
+    
+    let hasChanges = false;
+    const updatedBookings = bookings.map(b => {
+      if (b.status !== 'refused' && b.status !== 'completed' && isBookingPast(b.desiredDate, b.desiredTime)) {
+        hasChanges = true;
+        const updatedBooking = { ...b, status: 'completed' as const };
+        saveBookingToDb(updatedBooking);
+        return updatedBooking;
+      }
+      return b;
+    });
+
+    if (hasChanges) {
+      setBookings(updatedBookings);
+    }
+  }, [loadingDb, bookings]);
 
   // --- STRIPE CHECKOUT CALLBACK PARSER ---
   useEffect(() => {
@@ -1018,19 +1070,22 @@ export default function App() {
     setBookingTarget({ technician: tech, service, post });
     setBookingSuccess(false);
 
-    // Reset booking form and set initial date/time based on first free slot
+    const availableSlots = (tech.freeSlots || []).filter(slot => !isSlotPast(slot));
+    const firstAvailableSlot = availableSlots[0] || '';
+    const initialDate = firstAvailableSlot ? firstAvailableSlot.split(' à ')[0] : '';
+    const initialTime = firstAvailableSlot ? firstAvailableSlot.split(' à ')[1] : '10:00';
+
+    // Reset booking form and set initial date/time based on first available non-past slot
     setBookingForm(prev => ({
       ...prev,
       modelPhoto: '',
-      desiredDate: tech.freeSlots && tech.freeSlots.length > 0 ? tech.freeSlots[0].split(' à ')[0] : '',
-      desiredTime: tech.freeSlots && tech.freeSlots.length > 0 ? tech.freeSlots[0].split(' à ')[1] : '10:00'
+      commitmentCheck: false,
+      desiredDate: initialDate,
+      desiredTime: initialTime
     }));
 
-    if (tech.freeSlots && tech.freeSlots.length > 0) {
-      const parts = tech.freeSlots[0].split(' à ');
-      if (parts.length === 2) {
-        setSelectedDateTab(parts[0]);
-      }
+    if (initialDate) {
+      setSelectedDateTab(initialDate);
     } else {
       setSelectedDateTab('');
     }
@@ -1345,6 +1400,12 @@ export default function App() {
     // Enforce other slots are present
     if (!bookingForm.alternativeAvailabilities) {
       alert("Le client doit obligatoirement mettre d'autres créneaux de disponibles.");
+      return;
+    }
+
+    // Enforce commitment checkbox is checked
+    if (!bookingForm.commitmentCheck) {
+      alert("Vous devez obligatoirement vous engager à honorer le rendez-vous en cochant la case d'engagement.");
       return;
     }
 
@@ -2440,9 +2501,19 @@ export default function App() {
                                 ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
                                 : booking.status === 'confirmed'
                                 ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                : booking.status === 'completed'
+                                ? 'bg-slate-100 text-slate-600 border border-slate-200'
                                 : 'bg-red-100 text-red-700 border border-red-200'
                             }`}>
-                              {booking.status === 'pending' ? '⌛ En attente' : booking.status === 'proposed' ? '✨ Nouveau créneau proposé' : booking.status === 'confirmed' ? '✓ Confirmé' : '✕ Refusé'}
+                              {booking.status === 'pending' 
+                                ? '⌛ En attente' 
+                                : booking.status === 'proposed' 
+                                ? '✨ Nouveau créneau proposé' 
+                                : booking.status === 'confirmed' 
+                                ? '✓ Confirmé' 
+                                : booking.status === 'completed' 
+                                ? '🏁 Terminé' 
+                                : '✕ Refusé'}
                             </span>
                           </div>
 
@@ -2466,7 +2537,7 @@ export default function App() {
                                   </p>
                                   {(() => {
                                     const tech = technicians.find(t => t.id === booking.technicianId);
-                                    const availableSlots = tech?.freeSlots || [];
+                                    const availableSlots = (tech?.freeSlots || []).filter(slot => !isSlotPast(slot));
                                     if (availableSlots.length === 0) {
                                       return (
                                         <div className="flex flex-col gap-2">
@@ -3279,9 +3350,17 @@ export default function App() {
                             ? 'bg-amber-100 text-amber-700' 
                             : booking.status === 'confirmed'
                             ? 'bg-emerald-100 text-emerald-700'
+                            : booking.status === 'completed'
+                            ? 'bg-slate-100 text-slate-600 border border-slate-200'
                             : 'bg-red-100 text-red-700'
                         }`}>
-                          {booking.status === 'pending' ? '⌛ En attente' : booking.status === 'confirmed' ? '✓ Confirmée' : '✕ Refusée'}
+                          {booking.status === 'pending' 
+                            ? '⌛ En attente' 
+                            : booking.status === 'confirmed' 
+                            ? '✓ Confirmée' 
+                            : booking.status === 'completed' 
+                            ? '🏁 Terminée' 
+                            : '✕ Refusée'}
                         </span>
                       </div>
 
@@ -4454,12 +4533,12 @@ export default function App() {
                     const slotsByDate: Record<string, string[]> = {};
                     const freeSlots = bookingTarget.technician.freeSlots || [];
                     
-                    // Filter out slots that have already been booked/reserved
+                    // Filter out slots that have already been booked/reserved and slots that are in the past
                     const bookedSlots = bookings
                       .filter(b => b.technicianId === bookingTarget.technician.id && b.status !== 'refused')
                       .map(b => `${b.desiredDate} à ${b.desiredTime}`);
                     
-                    const availableSlotsFiltered = freeSlots.filter(slot => !bookedSlots.includes(slot));
+                    const availableSlotsFiltered = freeSlots.filter(slot => !bookedSlots.includes(slot) && !isSlotPast(slot));
                     
                     availableSlotsFiltered.forEach(slot => {
                       const parts = slot.split(' à ');
@@ -4650,6 +4729,21 @@ export default function App() {
                       onChange={e => setBookingForm({ ...bookingForm, message: e.target.value })}
                       className="w-full border border-slate-200 p-2.5 rounded-lg text-slate-800"
                     />
+                  </div>
+
+                  {/* Commitment Checkbox */}
+                  <div className="flex items-start gap-2.5 bg-amber-50/40 border border-amber-100 p-3 rounded-xl mt-1.5">
+                    <input 
+                      type="checkbox"
+                      id="commitmentCheck"
+                      required
+                      checked={bookingForm.commitmentCheck || false}
+                      onChange={e => setBookingForm({ ...bookingForm, commitmentCheck: e.target.checked })}
+                      className="w-4.5 h-4.5 text-[#0f4c81] border-slate-300 rounded focus:ring-[#0f4c81] cursor-pointer mt-0.5"
+                    />
+                    <label htmlFor="commitmentCheck" className="text-[11px] text-slate-600 leading-normal cursor-pointer select-none">
+                      Je m'engage à honorer mon rendez-vous et je confirme que je suis bien disponible à la date et à l'heure choisies (pour éviter les annulations répétées). <span className="text-red-500 font-bold">*</span>
+                    </label>
                   </div>
 
                   {/* Stripe Credit Card Payment section for 30% Deposit */}
