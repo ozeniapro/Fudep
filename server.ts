@@ -118,7 +118,7 @@ async function startServer() {
 
       const transporter = getSMTPTransporter();
       if (transporter) {
-        const from = process.env.SMTP_FROM || `"Fudep Support" <${process.env.SMTP_USER}>`;
+        const from = process.env.SMTP_FROM || `"Fudep" <contact@fudep.fr>`;
         await transporter.sendMail({
           from,
           to,
@@ -150,6 +150,7 @@ async function startServer() {
       server: { middlewareMode: true },
       appType: "spa",
     });
+    app.use(express.static(path.join(process.cwd(), "public")));
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");

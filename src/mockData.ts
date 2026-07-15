@@ -80,7 +80,8 @@ export const INITIAL_POSTS: Post[] = [
     likes: 342,
     tags: ['Classique', 'Rouge', 'Manucure Russe'],
     date: 'Il y a 2 heures',
-    price: 45
+    price: 45,
+    duration: '1h 00'
   },
   {
     id: 'post_2',
@@ -90,7 +91,8 @@ export const INITIAL_POSTS: Post[] = [
     likes: 512,
     tags: ['Pastel', 'Nail Art', 'Vagues'],
     date: 'Il y a 5 heures',
-    price: 55
+    price: 55,
+    duration: '1h 15'
   },
   {
     id: 'post_3',
@@ -100,7 +102,8 @@ export const INITIAL_POSTS: Post[] = [
     likes: 289,
     tags: ['Nude', 'Feuille d\'or', 'Minimaliste'],
     date: 'Il y a 1 jour',
-    price: 60
+    price: 60,
+    duration: '1h 30'
   },
   {
     id: 'post_4',
@@ -110,7 +113,8 @@ export const INITIAL_POSTS: Post[] = [
     likes: 198,
     tags: ['Rose', 'Chrome', 'Mariage'],
     date: 'Il y a 2 jours',
-    price: 50
+    price: 50,
+    duration: '1h 00'
   },
   {
     id: 'post_5',
@@ -120,7 +124,8 @@ export const INITIAL_POSTS: Post[] = [
     likes: 415,
     tags: ['French', 'Matcha', 'Tendance'],
     date: 'Il y a 3 jours',
-    price: 48
+    price: 48,
+    duration: '1h 15'
   },
   {
     id: 'post_6',
@@ -130,7 +135,8 @@ export const INITIAL_POSTS: Post[] = [
     likes: 263,
     tags: ['Matte', 'Abstrait', 'Terra Cotta'],
     date: 'Il y a 4 jours',
-    price: 50
+    price: 50,
+    duration: '1h 15'
   },
   {
     id: 'post_7',
@@ -140,7 +146,8 @@ export const INITIAL_POSTS: Post[] = [
     likes: 678,
     tags: ['Holographique', 'Paillettes', 'Effet magique'],
     date: 'Il y a 6 jours',
-    price: 65
+    price: 65,
+    duration: '1h 30'
   },
   {
     id: 'post_8',
@@ -150,6 +157,7 @@ export const INITIAL_POSTS: Post[] = [
     likes: 312,
     tags: ['Babyboomer', 'Naturel', 'Classique'],
     date: 'Il y a 1 semaine',
-    price: 45
+    price: 45,
+    duration: '1h 15'
   }
 ];

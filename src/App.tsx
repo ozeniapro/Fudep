@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Heart, 
   Share2, 
@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { INITIAL_TECHNICIANS, INITIAL_POSTS } from './mockData';
 import { NailTechnician, Post, BookingRequest, Analytics, UserSession, NailService, UserAccount, FAQItem } from './types';
+import { AdminSettingsTab } from './components/AdminSettingsTab';
 import { 
   seedDatabaseIfEmpty, 
   fetchTechnicians, 
@@ -426,6 +427,8 @@ export default function App() {
   const [selectedTag, setSelectedTag] = useState<string>('Tous');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [similarToPostId, setSimilarToPostId] = useState<string | null>(null);
+
+
   
   // Profile tab and authentication helper states
   const [confirmPassword, setConfirmPassword] = useState<string>('');
@@ -503,6 +506,64 @@ export default function App() {
     modelPhoto: '',
     commitmentCheck: false
   });
+
+  // Navigation back-button integration with browser history API
+  const isNavigatingRef = useRef(false);
+
+  // Synchronize state changes to browser history
+  useEffect(() => {
+    if (isNavigatingRef.current) return;
+
+    const state = {
+      activeTab,
+      selectedTechId,
+      selectedPostId,
+      bookingTargetId: bookingTarget ? bookingTarget.service.id : null,
+      activePolicyModal
+    };
+
+    if (window.history.state === null) {
+      window.history.replaceState(state, '');
+    } else {
+      const curState = window.history.state;
+      if (
+        curState.activeTab !== activeTab ||
+        curState.selectedTechId !== selectedTechId ||
+        curState.selectedPostId !== selectedPostId ||
+        curState.bookingTargetId !== (bookingTarget ? bookingTarget.service.id : null) ||
+        curState.activePolicyModal !== activePolicyModal
+      ) {
+        window.history.pushState(state, '');
+      }
+    }
+  }, [activeTab, selectedTechId, selectedPostId, bookingTarget, activePolicyModal]);
+
+  // Listen for back button (popstate event)
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (!event.state) return;
+      
+      isNavigatingRef.current = true;
+      
+      const { activeTab: poppedTab, selectedTechId: poppedTech, selectedPostId: poppedPost, bookingTargetId, activePolicyModal: poppedPolicy } = event.state;
+      
+      if (poppedTab) setActiveTab(poppedTab);
+      setSelectedTechId(poppedTech || null);
+      setSelectedPostId(poppedPost || null);
+      setActivePolicyModal(poppedPolicy || null);
+      
+      if (!bookingTargetId) {
+        setBookingTarget(null);
+      }
+
+      setTimeout(() => {
+        isNavigatingRef.current = false;
+      }, 50);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // --- CUSTOMIZABLE FAQ STATE & SERVICES ADDITION STATE ---
   const DEFAULT_FAQ: FAQItem[] = [
@@ -634,7 +695,7 @@ export default function App() {
 
   // Admin interface toggles
   const [isAdminView, setIsAdminView] = useState<boolean>(false);
-  const [adminTab, setAdminTab] = useState<'analytics' | 'reservations' | 'creation'>('analytics');
+  const [adminTab, setAdminTab] = useState<'analytics' | 'reservations' | 'creation' | 'settings'>('analytics');
   
   // New Tech / Post creation forms
   const [newTechForm, setNewTechForm] = useState({
@@ -651,7 +712,8 @@ export default function App() {
     caption: '',
     imagePreset: 'https://images.unsplash.com/photo-1604654894610-df63bc536371?w=800&auto=format&fit=crop&q=80',
     tags: '',
-    price: ''
+    price: '',
+    duration: ''
   });
 
   // --- PERSISTENCE ---
@@ -827,6 +889,59 @@ export default function App() {
             </div>
           `;
           sendNotificationEmail('ozenia.pro@gmail.com', emailSubject, emailText, emailHtml, 'booking_request');
+
+          // Client confirmation email
+          const clientSubject = `🌸 Demande de réservation bien reçue ! - Fudep [Réf: ${bookingId}]`;
+          const clientText = `Bonjour ${firstName},\n\nNous avons bien reçu votre demande de réservation chez ${techName} pour la prestation ${serviceName}.\n\n` +
+            `Détails de votre rendez-vous :\n` +
+            `- Date & Heure : Le ${date} à ${time}\n` +
+            `- Prix Total : ${priceVal} €\n` +
+            `- Acompte réglé (30%) : ${depositPrice} €\n` +
+            `- Reste à régler sur place : ${(priceVal - depositPrice).toFixed(2)} €\n\n` +
+            `Votre demande est actuellement en cours de validation par votre prestataire. Vous recevrez un e-mail dès qu'elle aura été validée ou si une autre date vous est proposée.\n\n` +
+            `Nous restons à votre disposition pour toute question à l'adresse contact@fudep.fr.\n\n` +
+            `Cordialement,\nL'équipe Fudep`;
+
+          const clientHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #f8fafc;">
+              <div style="text-align: center; margin-bottom: 25px;">
+                <h1 style="color: #0f4c81; font-family: 'Georgia', serif; font-size: 24px; margin-top: 0;">🌸 Demande de réservation reçue</h1>
+                <p style="color: #64748b; font-size: 14px;">Merci de votre confiance sur Fudep</p>
+              </div>
+              
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Bonjour <strong>${firstName}</strong>,</p>
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Nous vous confirmons que votre demande de réservation a bien été enregistrée et transmise à votre prestataire <strong>${techName}</strong>.</p>
+              
+              <div style="background-color: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; margin: 20px 0;">
+                <h3 style="color: #0f172a; margin-top: 0; font-size: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">📅 Détails du rendez-vous</h3>
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #475569;">
+                  <tr><td style="padding: 6px 0; font-weight: bold; width: 180px;">Réf. Réservation :</td><td><strong>${bookingId}</strong></td></tr>
+                  <tr><td style="padding: 6px 0; font-weight: bold;">Prestataire :</td><td>${techName}</td></tr>
+                  <tr><td style="padding: 6px 0; font-weight: bold;">Prestation :</td><td>${serviceName}</td></tr>
+                  <tr><td style="padding: 6px 0; font-weight: bold;">Date & Heure :</td><td style="color: #2563eb; font-weight: bold;">Le ${date} à ${time}</td></tr>
+                  <tr><td style="padding: 6px 0; font-weight: bold;">Tarif de la prestation :</td><td><strong>${priceVal} €</strong></td></tr>
+                  <tr><td style="padding: 6px 0; font-weight: bold; color: #16a34a;">Acompte payé (30%) :</td><td style="color: #16a34a; font-weight: bold;">${depositPrice} € (Stripe Checkout)</td></tr>
+                  <tr><td style="padding: 6px 0; font-weight: bold; color: #0f4c81;">Reste à régler sur place :</td><td style="color: #0f4c81; font-weight: bold;">${(priceVal - depositPrice).toFixed(2)} €</td></tr>
+                </table>
+              </div>
+
+              <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p style="color: #166534; font-size: 13px; line-height: 1.5; margin: 0;">
+                  ⚡ <strong>Prochaine étape :</strong> Votre prestataire examine actuellement votre demande. Vous recevrez un e-mail de confirmation dès que le rendez-vous sera validé, ou si une adaptation d'horaire est nécessaire.
+                </p>
+              </div>
+              
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Une question ou un changement ? Contactez-nous par e-mail à l'adresse <a href="mailto:contact@fudep.fr" style="color: #0f4c81; font-weight: bold; text-decoration: none;">contact@fudep.fr</a>.</p>
+              
+              <p style="color: #334155; font-size: 14px; line-height: 1.6; margin-top: 25px;">À très bientôt pour votre moment beauté !</p>
+              <p style="color: #0f4c81; font-weight: bold; font-size: 14px; margin-bottom: 0;">L'équipe Fudep</p>
+              
+              <p style="color: #475569; font-size: 11px; margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 15px; text-align: center;">
+                Ceci est une confirmation automatique de votre demande sur la plateforme Fudep.
+              </p>
+            </div>
+          `;
+          sendNotificationEmail(email, clientSubject, clientText, clientHtml, 'booking_request_client');
 
           // Update bookings in state
           setBookings(prev => {
@@ -1046,12 +1161,44 @@ export default function App() {
 
   const handleShare = (postId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    // Create a direct deep link using query parameters
     const mockLink = `${window.location.origin}${window.location.pathname}?post=${postId}`;
-    navigator.clipboard.writeText(mockLink).then(() => {
+    
+    const showToastAndAlert = () => {
       setShowShareToast(postId);
       setTimeout(() => setShowShareToast(null), 2500);
-    });
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(mockLink)
+        .then(showToastAndAlert)
+        .catch(() => {
+          fallbackCopyText(mockLink, showToastAndAlert);
+        });
+    } else {
+      fallbackCopyText(mockLink, showToastAndAlert);
+    }
+  };
+
+  const fallbackCopyText = (text: string, cb: () => void) => {
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.position = "fixed";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (successful) {
+        cb();
+      } else {
+        alert(`Copiez ce lien pour partager : ${text}`);
+      }
+    } catch (err) {
+      alert(`Copiez ce lien pour partager : ${text}`);
+    }
   };
 
   const handleOpenBooking = (tech: NailTechnician, service: NailService, post?: Post, e?: React.MouseEvent) => {
@@ -1145,6 +1292,66 @@ export default function App() {
     // Store in state and Firestore
     setAccounts(prev => [...prev, newAccount]);
     saveAccountToDb(newAccount);
+
+    // Send welcome email to the newly registered user
+    const welcomeSubject = `🌸 Bienvenue chez Fudep, ${loginForm.name} !`;
+    const welcomeText = `Bonjour ${loginForm.name},\n\nNous sommes ravis de vous compter parmi les membres de la communauté Fudep !\n\nFudep est la première marketplace de manucure et de nail art en Île-de-France. Vous pouvez désormais :\n- Parcourir les plus belles créations d'ongles de nos prestataires.\n- Ajouter vos professionnels favoris pour ne manquer aucune inspiration.\n- Réserver vos rendez-vous et payer votre acompte de 30% en toute sécurité.\n\nNous restons à votre entière disposition pour toute question.\n\nBelle découverte et à très bientôt pour vos prochains rendez-vous beauté !\n\nL'équipe Fudep\nozenia.pro@gmail.com`;
+    const welcomeHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #f8fafc;">
+        <div style="text-align: center; margin-bottom: 25px;">
+          <h1 style="color: #0f4c81; font-family: 'Georgia', serif; font-size: 24px; margin-top: 0;">🌸 Bienvenue chez Fudep</h1>
+          <p style="color: #64748b; font-size: 14px;">Votre complice beauté & manucure en Île-de-France</p>
+        </div>
+        
+        <p style="color: #334155; font-size: 14px; line-height: 1.6;">Bonjour <strong>${loginForm.name}</strong>,</p>
+        <p style="color: #334155; font-size: 14px; line-height: 1.6;">Nous sommes ravis de vous accueillir dans la communauté <strong>Fudep</strong> !</p>
+        
+        <div style="background-color: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; margin: 20px 0;">
+          <h3 style="color: #0f172a; margin-top: 0; font-size: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">✨ Ce que vous pouvez faire dès maintenant :</h3>
+          <ul style="color: #475569; font-size: 13px; line-height: 1.6; padding-left: 20px; margin-bottom: 0;">
+            <li style="margin-bottom: 8px;"><strong>Découvrir le flux :</strong> Parcourez les plus belles créations de nail art de nos prestataires parisiens et d'Île-de-France.</li>
+            <li style="margin-bottom: 8px;"><strong>Mettre en favoris :</strong> Ajoutez vos prestataires préférés ou aimez des créations pour concevoir votre carnet d'inspirations.</li>
+            <li style="margin-bottom: 0;"><strong>Réserver en ligne :</strong> Planifiez votre rendez-vous en quelques clics et réglez votre acompte de 30% en toute sécurité.</li>
+          </ul>
+        </div>
+        
+        <p style="color: #334155; font-size: 14px; line-height: 1.6;">Besoin d'aide ou d'une question ? Répondez simplement à cet e-mail ou contactez-nous à l'adresse <a href="mailto:ozenia.pro@gmail.com" style="color: #0f4c81; font-weight: bold; text-decoration: none;">ozenia.pro@gmail.com</a>.</p>
+        
+        <p style="color: #334155; font-size: 14px; line-height: 1.6; margin-top: 25px;">Belle découverte et à très bientôt !</p>
+        <p style="color: #0f4c81; font-weight: bold; font-size: 14px; margin-bottom: 0;">L'équipe Fudep</p>
+        
+        <p style="color: #475569; font-size: 11px; margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 15px; text-align: center;">
+          Cet e-mail de bienvenue vous a été envoyé automatiquement suite à votre inscription sur Fudep.
+        </p>
+      </div>
+    `;
+    sendNotificationEmail(loginForm.email, welcomeSubject, welcomeText, welcomeHtml, 'welcome_email');
+
+    // Also notify the administrator
+    const adminSubject = `👤 Nouvelle inscription d'un membre - Fudep [${loginForm.name}]`;
+    const adminText = `Bonjour,\n\nUn nouveau membre vient de s'inscrire sur Fudep.\n\nInformations du membre :\n- Nom : ${loginForm.name}\n- E-mail : ${loginForm.email}\n- Téléphone : ${loginForm.phone}\n- Ville : ${loginForm.city}\n\nCordialement,\nL'équipe Fudep`;
+    const adminHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #f8fafc;">
+        <h2 style="color: #0f172a; border-bottom: 2px solid #cbd5e1; padding-bottom: 10px; margin-top: 0;">👤 Nouvelle inscription d'un membre</h2>
+        <p style="color: #334155; font-size: 14px;">Bonjour,</p>
+        <p style="color: #334155; font-size: 14px;">Un nouveau membre vient de s'inscrire sur la plateforme Fudep.</p>
+        
+        <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin: 20px 0;">
+          <h3 style="color: #0f172a; margin-top: 0; font-size: 14px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">📍 Profil du membre</h3>
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #475569;">
+            <tr><td style="padding: 4px 0; font-weight: bold; width: 120px;">Nom :</td><td>${loginForm.name}</td></tr>
+            <tr><td style="padding: 4px 0; font-weight: bold;">E-mail :</td><td style="color: #2563eb;">${loginForm.email}</td></tr>
+            <tr><td style="padding: 4px 0; font-weight: bold;">Téléphone :</td><td>${loginForm.phone}</td></tr>
+            <tr><td style="padding: 4px 0; font-weight: bold;">Ville :</td><td>${loginForm.city}</td></tr>
+          </table>
+        </div>
+        
+        <p style="color: #475569; font-size: 12px; margin-top: 25px; border-top: 1px solid #cbd5e1; padding-top: 15px; text-align: center;">
+          Notification automatique de la plateforme Fudep.
+        </p>
+      </div>
+    `;
+    sendNotificationEmail('ozenia.pro@gmail.com', adminSubject, adminText, adminHtml, 'new_registration');
 
     // Log user in
     setSession({
@@ -1527,7 +1734,8 @@ export default function App() {
       likes: Math.floor(Math.random() * 20),
       tags: parseHashtags(newPostForm.tags, finalCaption),
       date: 'À l\'instant',
-      price: parsedPrice > 0 ? parsedPrice : undefined
+      price: parsedPrice > 0 ? parsedPrice : undefined,
+      duration: newPostForm.duration ? newPostForm.duration : undefined
     };
 
     setPosts(prev => [newPost, ...prev]);
@@ -1537,7 +1745,8 @@ export default function App() {
       caption: '',
       imagePreset: 'https://images.unsplash.com/photo-1604654894610-df63bc536371?w=800&auto=format&fit=crop&q=80',
       tags: '',
-      price: ''
+      price: '',
+      duration: ''
     });
     alert('Nouvelle publication ajoutée au flux visuel !');
   };
@@ -1622,6 +1831,129 @@ export default function App() {
           </div>
         `;
         sendNotificationEmail('ozenia.pro@gmail.com', emailSubject, emailText, emailHtml, `booking_${status}`);
+
+        // Notify the client of status update
+        let clientStatusSubject = '';
+        let clientStatusText = '';
+        let clientStatusHtml = '';
+
+        if (status === 'confirmed') {
+          clientStatusSubject = `🎉 Votre réservation est confirmée ! - Fudep [Réf: ${id}]`;
+          clientStatusText = `Bonjour ${bookingToSave.clientFirstName},\n\n` +
+            `Excellente nouvelle ! Votre prestataire ${bookingToSave.technicianName} a confirmé votre rendez-vous.\n\n` +
+            `Détails de votre réservation :\n` +
+            `- Prestation : ${bookingToSave.serviceName}\n` +
+            `- Date & Heure : Le ${bookingToSave.desiredDate} à ${bookingToSave.desiredTime}\n` +
+            `- Tarif total : ${bookingToSave.price} €\n` +
+            `- Acompte payé (30%) : ${(bookingToSave.price * 0.3).toFixed(2)} € (Stripe)\n` +
+            `- Reste à régler sur place (70%) : ${(bookingToSave.price * 0.7).toFixed(2)} €\n\n` +
+            `Nous vous remercions de votre confiance.\n\n` +
+            `Cordialement,\nL'équipe Fudep`;
+
+          clientStatusHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #f8fafc;">
+              <div style="text-align: center; margin-bottom: 25px;">
+                <h1 style="color: #16a34a; font-family: 'Georgia', serif; font-size: 24px; margin-top: 0;">🎉 Votre réservation est confirmée !</h1>
+                <p style="color: #64748b; font-size: 14px;">Bonne nouvelle pour votre rendez-vous beauté</p>
+              </div>
+              
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Bonjour <strong>${bookingToSave.clientFirstName}</strong>,</p>
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Votre prestataire <strong>${bookingToSave.technicianName}</strong> a validé votre demande de réservation.</p>
+              
+              <div style="background-color: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; margin: 20px 0;">
+                <h3 style="color: #0f172a; margin-top: 0; font-size: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">📅 Récapitulatif du rendez-vous</h3>
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #475569;">
+                  <tr><td style="padding: 6px 0; font-weight: bold; width: 180px;">Réf. Réservation :</td><td><strong>${id}</strong></td></tr>
+                  <tr><td style="padding: 6px 0; font-weight: bold;">Prestataire :</td><td>${bookingToSave.technicianName}</td></tr>
+                  <tr><td style="padding: 6px 0; font-weight: bold;">Prestation :</td><td>${bookingToSave.serviceName}</td></tr>
+                  <tr><td style="padding: 6px 0; font-weight: bold;">Date & Heure :</td><td style="color: #16a34a; font-weight: bold;">Le ${bookingToSave.desiredDate} à ${bookingToSave.desiredTime}</td></tr>
+                  <tr><td style="padding: 6px 0; font-weight: bold;">Tarif de la prestation :</td><td><strong>${bookingToSave.price} €</strong></td></tr>
+                  <tr><td style="padding: 6px 0; font-weight: bold; color: #16a34a;">Acompte payé (30%) :</td><td style="color: #16a34a; font-weight: bold;">${(bookingToSave.price * 0.3).toFixed(2)} € (Stripe Checkout)</td></tr>
+                  <tr><td style="padding: 6px 0; font-weight: bold; color: #0f4c81;">Reste à régler sur place :</td><td style="color: #0f4c81; font-weight: bold;">${(bookingToSave.price * 0.7).toFixed(2)} €</td></tr>
+                </table>
+              </div>
+              
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Vous pouvez retrouver vos réservations en vous connectant sur la plateforme Fudep.</p>
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">En cas de besoin, vous pouvez nous écrire à <a href="mailto:contact@fudep.fr" style="color: #0f4c81; font-weight: bold; text-decoration: none;">contact@fudep.fr</a>.</p>
+              
+              <p style="color: #334155; font-size: 14px; line-height: 1.6; margin-top: 25px;">À très bientôt !</p>
+              <p style="color: #0f4c81; font-weight: bold; font-size: 14px;">L'équipe Fudep</p>
+            </div>
+          `;
+        } else if (status === 'refused') {
+          clientStatusSubject = `❌ Votre demande de réservation a été refusée - Fudep [Réf: ${id}]`;
+          clientStatusText = `Bonjour ${bookingToSave.clientFirstName},\n\n` +
+            `Nous sommes au regret de vous informer que votre prestataire ${bookingToSave.technicianName} a dû refuser votre demande de réservation.\n\n` +
+            `Rappel de la demande :\n` +
+            `- Prestation : ${bookingToSave.serviceName}\n` +
+            `- Date initialement demandée : Le ${bookingToSave.desiredDate} à ${bookingToSave.desiredTime}\n\n` +
+            `Remboursement de l'acompte :\n` +
+            `Conformément à nos conditions, votre acompte de 30% (${(bookingToSave.price * 0.3).toFixed(2)} €) réglé via Stripe vous sera intégralement remboursé sous 5 à 10 jours ouvrés directement sur le moyen de paiement utilisé.\n\n` +
+            `N'hésitez pas à tenter de réserver un autre créneau ou auprès d'un autre prestataire sur notre plateforme.\n\n` +
+            `Cordialement,\nL'équipe Fudep`;
+
+          clientStatusHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #f8fafc;">
+              <div style="text-align: center; margin-bottom: 25px;">
+                <h1 style="color: #dc2626; font-family: 'Georgia', serif; font-size: 24px; margin-top: 0;">❌ Demande de réservation refusée</h1>
+                <p style="color: #64748b; font-size: 14px;">Rappel des détails de votre demande</p>
+              </div>
+              
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Bonjour <strong>${bookingToSave.clientFirstName}</strong>,</p>
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Nous sommes au regret de vous informer que votre prestataire <strong>${bookingToSave.technicianName}</strong> n'a pas pu valider votre demande de réservation pour le <strong>Le ${bookingToSave.desiredDate} à ${bookingToSave.desiredTime}</strong>.</p>
+              
+              <div style="background-color: #fef2f2; border: 1px solid #fee2e2; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <h4 style="color: #991b1b; margin-top: 0; margin-bottom: 5px; font-size: 14px;">💰 Remboursement de votre acompte</h4>
+                <p style="color: #7f1d1d; font-size: 13px; line-height: 1.5; margin: 0;">
+                  Votre acompte de 30% soit <strong>${(bookingToSave.price * 0.3).toFixed(2)} €</strong> réglé via Stripe vous sera remboursé automatiquement sous un délai de 5 à 10 jours ouvrés directement sur la carte bancaire ayant servi au paiement.
+                </p>
+              </div>
+
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Nous vous invitons à consulter les autres créneaux disponibles ou à choisir un autre prestataire partenaire sur Fudep.</p>
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Pour toute question, vous pouvez nous écrire à <a href="mailto:contact@fudep.fr" style="color: #0f4c81; font-weight: bold; text-decoration: none;">contact@fudep.fr</a>.</p>
+              
+              <p style="color: #0f4c81; font-weight: bold; font-size: 14px; margin-top: 25px;">L'équipe Fudep</p>
+            </div>
+          `;
+        } else if (status === 'proposed') {
+          clientStatusSubject = `📅 Nouvelle date proposée pour votre rendez-vous - Fudep [Réf: ${id}]`;
+          clientStatusText = `Bonjour ${bookingToSave.clientFirstName},\n\n` +
+            `Votre prestataire ${bookingToSave.technicianName} n'est malheureusement pas disponible sur le créneau initialement demandé. Il vous propose la date alternative suivante :\n` +
+            `- Nouvelle date proposée : Le ${proposedDate}\n\n` +
+            `Veuillez vous connecter à votre compte sur Fudep pour accepter cette proposition ou choisir un autre créneau qui vous convient mieux.\n\n` +
+            `Cordialement,\nL'équipe Fudep`;
+
+          clientStatusHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #f8fafc;">
+              <div style="text-align: center; margin-bottom: 25px;">
+                <h1 style="color: #d97706; font-family: 'Georgia', serif; font-size: 24px; margin-top: 0;">📅 Proposition d'une date alternative</h1>
+                <p style="color: #64748b; font-size: 14px;">Une nouvelle date est suggérée pour votre rendez-vous</p>
+              </div>
+              
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Bonjour <strong>${bookingToSave.clientFirstName}</strong>,</p>
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Votre prestataire <strong>${bookingToSave.technicianName}</strong> n'étant pas disponible sur le créneau choisi, il vous propose une autre date :</p>
+              
+              <div style="background-color: #fffbeb; border: 1px solid #fef3c7; padding: 20px; border-radius: 10px; margin: 20px 0; text-align: center;">
+                <span style="font-size: 12px; color: #b45309; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">CRÉNEAU PROPOSÉ</span>
+                <p style="font-size: 18px; font-weight: bold; color: #b45309; margin: 5px 0 0 0;">Le ${proposedDate}</p>
+              </div>
+
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;"><strong>Que souhaitez-vous faire ?</strong></p>
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Connectez-vous dès maintenant à votre espace Fudep pour :</p>
+              <ul style="color: #475569; font-size: 13px; line-height: 1.6; padding-left: 20px;">
+                <li><strong>Accepter</strong> cette date (votre rendez-vous sera alors immédiatement confirmé)</li>
+                <li><strong>Décliner</strong> et choisir un autre créneau de libre de votre choix</li>
+              </ul>
+              
+              <p style="color: #334155; font-size: 14px; line-height: 1.6; margin-top: 25px;">En cas de question, écrivez-nous à <a href="mailto:contact@fudep.fr" style="color: #0f4c81; font-weight: bold; text-decoration: none;">contact@fudep.fr</a>.</p>
+              <p style="color: #0f4c81; font-weight: bold; font-size: 14px;">L'équipe Fudep</p>
+            </div>
+          `;
+        }
+
+        if (clientStatusSubject) {
+          sendNotificationEmail(bookingToSave.clientEmail, clientStatusSubject, clientStatusText, clientStatusHtml, `booking_${status}_client`);
+        }
       }
       return updated;
     });
@@ -1682,6 +2014,50 @@ export default function App() {
           </div>
         `;
         sendNotificationEmail('ozenia.pro@gmail.com', emailSubject, emailText, emailHtml, 'booking_date_accepted');
+
+        // Client confirmation email
+        const clientAcceptSubject = `🌸 Confirmation : Votre nouvelle date est validée ! - Fudep [Réf: ${bookingId}]`;
+        const clientAcceptText = `Bonjour ${bookingToSave.clientFirstName},\n\n` +
+          `Vous avez bien accepté la date alternative proposée pour votre rendez-vous chez ${bookingToSave.technicianName}.\n\n` +
+          `Détails de votre réservation :\n` +
+          `- Prestation : ${bookingToSave.serviceName}\n` +
+          `- Date & Heure : Le ${bookingToSave.desiredDate} à ${bookingToSave.desiredTime}\n` +
+          `- Tarif total : ${bookingToSave.price} €\n` +
+          `- Acompte payé (30%) : ${(bookingToSave.price * 0.3).toFixed(2)} € (Stripe)\n` +
+          `- Reste à régler sur place (70%) : ${(bookingToSave.price * 0.7).toFixed(2)} €\n\n` +
+          `Votre rendez-vous est dorénavant officiellement confirmé.\n\n` +
+          `Cordialement,\nL'équipe Fudep`;
+
+        const clientAcceptHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #f8fafc;">
+            <div style="text-align: center; margin-bottom: 25px;">
+              <h1 style="color: #16a34a; font-family: 'Georgia', serif; font-size: 24px; margin-top: 0;">✅ Nouvelle date confirmée !</h1>
+              <p style="color: #64748b; font-size: 14px;">Votre rendez-vous beauté a été mis à jour</p>
+            </div>
+            
+            <p style="color: #334155; font-size: 14px; line-height: 1.6;">Bonjour <strong>${bookingToSave.clientFirstName}</strong>,</p>
+            <p style="color: #334155; font-size: 14px; line-height: 1.6;">Nous vous confirmons que vous avez accepté la date alternative proposée par votre prestataire <strong>${bookingToSave.technicianName}</strong>.</p>
+            
+            <div style="background-color: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; margin: 20px 0;">
+              <h3 style="color: #0f172a; margin-top: 0; font-size: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">📅 Récapitulatif du rendez-vous</h3>
+              <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #475569;">
+                <tr><td style="padding: 6px 0; font-weight: bold; width: 180px;">Réf. Réservation :</td><td><strong>${bookingId}</strong></td></tr>
+                <tr><td style="padding: 6px 0; font-weight: bold;">Prestataire :</td><td>${bookingToSave.technicianName}</td></tr>
+                <tr><td style="padding: 6px 0; font-weight: bold;">Prestation :</td><td>${bookingToSave.serviceName}</td></tr>
+                <tr><td style="padding: 6px 0; font-weight: bold;">Date & Heure :</td><td style="color: #16a34a; font-weight: bold;">Le ${bookingToSave.desiredDate} à ${bookingToSave.desiredTime}</td></tr>
+                <tr><td style="padding: 6px 0; font-weight: bold;">Tarif de la prestation :</td><td><strong>${bookingToSave.price} €</strong></td></tr>
+                <tr><td style="padding: 6px 0; font-weight: bold; color: #16a34a;">Acompte payé (30%) :</td><td style="color: #16a34a; font-weight: bold;">${(bookingToSave.price * 0.3).toFixed(2)} € (Stripe Checkout)</td></tr>
+                <tr><td style="padding: 6px 0; font-weight: bold; color: #0f4c81;">Reste à régler sur place :</td><td style="color: #0f4c81; font-weight: bold;">${(bookingToSave.price * 0.7).toFixed(2)} €</td></tr>
+              </table>
+            </div>
+            
+            <p style="color: #334155; font-size: 14px; line-height: 1.6;">Votre rendez-vous est maintenant officiellement confirmé. Nous restons à votre disposition à l'adresse <a href="mailto:contact@fudep.fr" style="color: #0f4c81; font-weight: bold; text-decoration: none;">contact@fudep.fr</a>.</p>
+            
+            <p style="color: #334155; font-size: 14px; line-height: 1.6; margin-top: 25px;">À très bientôt !</p>
+            <p style="color: #0f4c81; font-weight: bold; font-size: 14px;">L'équipe Fudep</p>
+          </div>
+        `;
+        sendNotificationEmail(bookingToSave.clientEmail, clientAcceptSubject, clientAcceptText, clientAcceptHtml, 'booking_date_accepted_client');
       }
       return updated;
     });
@@ -1743,6 +2119,45 @@ export default function App() {
             </div>
           `;
           sendNotificationEmail('ozenia.pro@gmail.com', emailSubject, emailText, emailHtml, 'booking_rescheduled');
+
+          // Client confirmation email
+          const clientReschedSubject = `🔄 Votre demande de replanification a été envoyée - Fudep [Réf: ${bookingId}]`;
+          const clientReschedText = `Bonjour ${bookingToSave.clientFirstName},\n\n` +
+            `Vous avez choisi un nouveau créneau disponible pour votre réservation chez ${bookingToSave.technicianName}.\n\n` +
+            `Détails du nouveau créneau demandé :\n` +
+            `- Date & Heure : Le ${bookingToSave.desiredDate} à ${bookingToSave.desiredTime}\n` +
+            `- Statut : En attente de validation\n\n` +
+            `Votre demande a bien été transmise à votre prestataire, et vous recevrez un e-mail dès qu'elle aura été validée.\n\n` +
+            `Cordialement,\nL'équipe Fudep`;
+
+          const clientReschedHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #f8fafc;">
+              <div style="text-align: center; margin-bottom: 25px;">
+                <h1 style="color: #2563eb; font-family: 'Georgia', serif; font-size: 24px; margin-top: 0;">🔄 Demande de replanification envoyée</h1>
+                <p style="color: #64748b; font-size: 14px;">Nouveau créneau en attente de validation</p>
+              </div>
+              
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Bonjour <strong>${bookingToSave.clientFirstName}</strong>,</p>
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Nous vous confirmons que votre demande de replanification de rendez-vous chez <strong>${bookingToSave.technicianName}</strong> a bien été transmise.</p>
+              
+              <div style="background-color: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; margin: 20px 0;">
+                <h3 style="color: #0f172a; margin-top: 0; font-size: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">📅 Récapitulatif du nouveau créneau</h3>
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #475569;">
+                  <tr><td style="padding: 6px 0; font-weight: bold; width: 180px;">Réf. Réservation :</td><td><strong>${bookingId}</strong></td></tr>
+                  <tr><td style="padding: 6px 0; font-weight: bold;">Prestataire :</td><td>${bookingToSave.technicianName}</td></tr>
+                  <tr><td style="padding: 6px 0; font-weight: bold;">Prestation :</td><td>${bookingToSave.serviceName}</td></tr>
+                  <tr><td style="padding: 6px 0; font-weight: bold;">Nouveau créneau choisi :</td><td style="color: #2563eb; font-weight: bold;">Le ${bookingToSave.desiredDate} à ${bookingToSave.desiredTime}</td></tr>
+                  <tr><td style="padding: 6px 0; font-weight: bold;">Statut :</td><td><strong style="color: #d97706;">En attente de validation</strong></td></tr>
+                </table>
+              </div>
+              
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Votre prestataire étudie actuellement ce nouveau créneau. Vous serez alerté(e) par e-mail dès sa validation.</p>
+              <p style="color: #334155; font-size: 14px; line-height: 1.6;">Pour toute information complémentaire, vous pouvez nous écrire à <a href="mailto:contact@fudep.fr" style="color: #0f4c81; font-weight: bold; text-decoration: none;">contact@fudep.fr</a>.</p>
+              
+              <p style="color: #0f4c81; font-weight: bold; font-size: 14px; margin-top: 25px;">L'équipe Fudep</p>
+            </div>
+          `;
+          sendNotificationEmail(bookingToSave.clientEmail, clientReschedSubject, clientReschedText, clientReschedHtml, 'booking_rescheduled_client');
 
           return bookingToSave;
         }
@@ -2145,7 +2560,23 @@ export default function App() {
                         {renderCaptionWithHashtags(activePost.caption, handleHashtagClick)}
                       </p>
 
-                      <div className="text-[11px] text-slate-400 mt-1">{activePost.date}</div>
+                      {/* Post Price & Duration Badge inside Post Detail */}
+                      {(activePost.price !== undefined || activePost.duration) && (
+                        <div className="flex gap-2.5 mt-2 flex-wrap">
+                          {activePost.price !== undefined && (
+                            <span className="bg-slate-100 text-slate-800 font-extrabold text-[11px] px-2.5 py-1 rounded-full">
+                              💰 Tarif : {activePost.price}€
+                            </span>
+                          )}
+                          {activePost.duration && (
+                            <span className="bg-slate-100 text-slate-800 font-extrabold text-[11px] px-2.5 py-1 rounded-full flex items-center gap-1">
+                              ⏱️ Durée estimée : {activePost.duration}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="text-[11px] text-slate-400 mt-1.5">{activePost.date}</div>
 
                       {/* Prominent Services Box */}
                       <div className="mt-4 bg-slate-50 border border-slate-100 rounded-xl p-4">
@@ -2158,7 +2589,7 @@ export default function App() {
                                 <span className="text-[10px] text-slate-400">⏱️ {s.duration}</span>
                               </div>
                               <button 
-                                onClick={() => handleOpenBooking(activePostTech, s, activePost)}
+                                onClick={() => handleOpenBooking(activePostTech, s)}
                                 className="bg-[#0f4c81] text-white font-medium text-xs py-1.5 px-3 rounded-md hover:bg-[#1a5b94] whitespace-nowrap shrink-0 ml-2"
                               >
                                 Réserver - {s.price}€
@@ -2320,7 +2751,6 @@ export default function App() {
                             
                             {/* Overlay Price Tag Badge */}
                             <div className="absolute top-3 right-3 bg-white/90 backdrop-blur text-slate-900 px-3 py-1 rounded-full text-xs font-black shadow-md flex items-center gap-1 border border-slate-200/50">
-                              <span>A partir de</span>
                               <span className="text-[#0f4c81]">{post.price !== undefined ? post.price : (tech.services[0]?.price || 0)}€</span>
                             </div>
                           </div>
@@ -2669,7 +3099,7 @@ export default function App() {
               <div className="p-4 flex flex-col gap-4 animate-fade-in pb-16">
                 <h2 className="text-xl font-bold font-serif text-[#0f4c81] border-b border-slate-100 pb-2">👤 Mon Profil Fudep</h2>
 
-                {session.isLoggedIn ? (
+                {session.isLoggedIn && (
                   <div className="flex flex-col gap-4">
                     {/* User Card */}
                     <div className="bg-gradient-to-tr from-[#0f4c81] to-slate-800 text-white rounded-2xl p-5 shadow-md">
@@ -2743,6 +3173,23 @@ export default function App() {
                         </button>
                       </form>
                     </div>
+                  </div>
+                )}
+
+                {!session.isLoggedIn && (
+                  <div className="text-center py-8 bg-white rounded-2xl border border-slate-100 p-5 shadow-xs mb-2">
+                    <Lock className="w-10 h-10 text-[#0f4c81] mx-auto mb-2.5 opacity-60" />
+                    <h3 className="text-slate-700 text-xs font-semibold mb-1">Connexion requise</h3>
+                    <p className="text-slate-400 text-[11px] max-w-xs mx-auto">Veuillez vous connecter pour voir vos paramètres de profil, demander de l'aide et gérer votre compte.</p>
+                    <button 
+                      type="button"
+                      onClick={() => setShowLoginModal(true)} 
+                      className="mt-3 bg-[#0f4c81] text-white font-semibold text-[11px] py-2 px-4 rounded-lg shadow-md hover:bg-[#1a5b94]"
+                    >
+                      Se connecter maintenant
+                    </button>
+                  </div>
+                )}
 
                     {/* FAQ Accordion Section */}
                     {faqs.length > 0 && (
@@ -2783,92 +3230,94 @@ export default function App() {
                     )}
 
                     {/* Contact Help */}
-                    <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-xs">
-                      <h3 className="font-serif font-bold text-slate-800 text-sm mb-2.5 pb-1 border-b border-slate-100 flex items-center gap-1.5">
-                        💬 Demander de l'aide & Support
-                      </h3>
-                      <p className="text-slate-500 text-[11px] leading-normal mb-3">
-                        Notre équipe d'assistance Fudep est là pour vous aider à tout moment. Racontez-nous votre problème ou posez votre question ci-dessous.
-                      </p>
-                      <form onSubmit={(e) => {
-                        e.preventDefault();
-                        if (!helpMessage) return;
+                    {session.isLoggedIn && (
+                      <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-xs">
+                        <h3 className="font-serif font-bold text-slate-800 text-sm mb-2.5 pb-1 border-b border-slate-100 flex items-center gap-1.5">
+                          💬 Demander de l'aide & Support
+                        </h3>
+                        <p className="text-slate-500 text-[11px] leading-normal mb-3">
+                          Notre équipe d'assistance Fudep est là pour vous aider à tout moment. Racontez-nous votre problème ou posez votre question ci-dessous.
+                        </p>
+                        <form onSubmit={(e) => {
+                          e.preventDefault();
+                          if (!helpMessage) return;
 
-                        // Send support email to admin
-                        const emailSubject = `✉️ Nouvelle demande d'aide (Support) Fudep - Sujet: ${helpSubject}`;
-                        const emailText = `Bonjour,\n\nUne nouvelle demande d'aide a été soumise sur la plateforme Fudep.\n\n` +
-                          `Détails de la demande :\n` +
-                          `- Utilisateur : ${session.name || 'Client connecté'} (${session.email})\n` +
-                          `- Téléphone : ${session.phone || 'Non renseigné'}\n` +
-                          `- Sujet : ${helpSubject}\n` +
-                          `- Message :\n"${helpMessage}"\n\n` +
-                          `Veuillez lui répondre directement à l'adresse ${session.email}.\n\n` +
-                          `Cordialement,\nLe Support Fudep`;
+                          // Send support email to admin
+                          const emailSubject = `✉️ Nouvelle demande d'aide (Support) Fudep - Sujet: ${helpSubject}`;
+                          const emailText = `Bonjour,\n\nUne nouvelle demande d'aide a été soumise sur la plateforme Fudep.\n\n` +
+                            `Détails de la demande :\n` +
+                            `- Utilisateur : ${session.name || 'Client connecté'} (${session.email})\n` +
+                            `- Téléphone : ${session.phone || 'Non renseigné'}\n` +
+                            `- Sujet : ${helpSubject}\n` +
+                            `- Message :\n"${helpMessage}"\n\n` +
+                            `Veuillez lui répondre directement à l'adresse ${session.email}.\n\n` +
+                            `Cordialement,\nLe Support Fudep`;
 
-                        const emailHtml = `
-                          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #f8fafc;">
-                            <h2 style="color: #0f4c81; border-bottom: 2px solid #cbd5e1; padding-bottom: 10px; margin-top: 0;">✉️ Nouvelle demande de support</h2>
-                            <p style="color: #334155; font-size: 14px; line-height: 1.5;">Bonjour Sophie (Admin),</p>
-                            <p style="color: #334155; font-size: 14px; line-height: 1.5;">Un utilisateur a soumis une demande d'aide via le formulaire de support de Fudep.</p>
-                            
-                            <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin: 20px 0;">
-                              <h3 style="color: #0f172a; margin-top: 0; font-size: 14px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">👤 Informations Utilisateur</h3>
-                              <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #475569;">
-                                <tr><td style="padding: 4px 0; font-weight: bold; width: 120px;">Nom :</td><td>${session.name || 'Client'}</td></tr>
-                                <tr><td style="padding: 4px 0; font-weight: bold;">E-mail :</td><td><a href="mailto:${session.email}" style="color: #2563eb; text-decoration: none;">${session.email}</a></td></tr>
-                                <tr><td style="padding: 4px 0; font-weight: bold;">Téléphone :</td><td>${session.phone || 'Non renseigné'}</td></tr>
-                                <tr><td style="padding: 4px 0; font-weight: bold;">Sujet :</td><td><strong>${helpSubject}</strong></td></tr>
-                              </table>
+                          const emailHtml = `
+                            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #f8fafc;">
+                              <h2 style="color: #0f4c81; border-bottom: 2px solid #cbd5e1; padding-bottom: 10px; margin-top: 0;">✉️ Nouvelle demande de support</h2>
+                              <p style="color: #334155; font-size: 14px; line-height: 1.5;">Bonjour Sophie (Admin),</p>
+                              <p style="color: #334155; font-size: 14px; line-height: 1.5;">Un utilisateur a soumis une demande d'aide via le formulaire de support de Fudep.</p>
+                              
+                              <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin: 20px 0;">
+                                <h3 style="color: #0f172a; margin-top: 0; font-size: 14px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">👤 Informations Utilisateur</h3>
+                                <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #475569;">
+                                  <tr><td style="padding: 4px 0; font-weight: bold; width: 120px;">Nom :</td><td>${session.name || 'Client'}</td></tr>
+                                  <tr><td style="padding: 4px 0; font-weight: bold;">E-mail :</td><td><a href="mailto:${session.email}" style="color: #2563eb; text-decoration: none;">${session.email}</a></td></tr>
+                                  <tr><td style="padding: 4px 0; font-weight: bold;">Téléphone :</td><td>${session.phone || 'Non renseigné'}</td></tr>
+                                  <tr><td style="padding: 4px 0; font-weight: bold;">Sujet :</td><td><strong>${helpSubject}</strong></td></tr>
+                                </table>
+                              </div>
+
+                              <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin: 20px 0;">
+                                <h3 style="color: #0f172a; margin-top: 0; font-size: 14px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">💬 Message</h3>
+                                <p style="color: #334155; font-size: 13px; line-height: 1.6; white-space: pre-wrap; margin: 5px 0;"><em>"${helpMessage}"</em></p>
+                              </div>
+
+                              <p style="color: #475569; font-size: 12px; margin-top: 25px; border-top: 1px solid #cbd5e1; padding-top: 15px; text-align: center;">
+                                Vous pouvez répondre à cet utilisateur en cliquant directement sur son adresse e-mail ci-dessus.
+                              </p>
                             </div>
+                          `;
+                          sendNotificationEmail('ozenia.pro@gmail.com', emailSubject, emailText, emailHtml, 'support_request');
 
-                            <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin: 20px 0;">
-                              <h3 style="color: #0f172a; margin-top: 0; font-size: 14px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">💬 Message</h3>
-                              <p style="color: #334155; font-size: 13px; line-height: 1.6; white-space: pre-wrap; margin: 5px 0;"><em>"${helpMessage}"</em></p>
-                            </div>
-
-                            <p style="color: #475569; font-size: 12px; margin-top: 25px; border-top: 1px solid #cbd5e1; padding-top: 15px; text-align: center;">
-                              Vous pouvez répondre à cet utilisateur en cliquant directement sur son adresse e-mail ci-dessus.
-                            </p>
+                          alert("Votre demande d'aide a été envoyée avec succès ! Notre équipe d'assistance Fudep vous contactera à " + session.email + " sous 24h.");
+                          setHelpMessage('');
+                        }} className="flex flex-col gap-3 text-xs">
+                          <div>
+                            <label className="block text-slate-500 font-semibold mb-1">Sujet de votre demande</label>
+                            <select 
+                              value={helpSubject}
+                              onChange={e => setHelpSubject(e.target.value)}
+                              className="w-full border border-slate-200 p-2 rounded-lg text-slate-800 bg-white"
+                            >
+                              <option value="général">Question générale sur la plateforme</option>
+                              <option value="réservation">Question relative à une réservation (veuillez préciser laquelle ci-dessous)</option>
+                              <option value="paiement">Question relative aux paiements et acomptes</option>
+                              <option value="technique">Bug ou problème technique sur l'application</option>
+                              <option value="autre">Autre demande</option>
+                            </select>
                           </div>
-                        `;
-                        sendNotificationEmail('ozenia.pro@gmail.com', emailSubject, emailText, emailHtml, 'support_request');
-
-                        alert("Votre demande d'aide a été envoyée avec succès ! Notre équipe d'assistance Fudep vous contactera à " + session.email + " sous 24h.");
-                        setHelpMessage('');
-                      }} className="flex flex-col gap-3 text-xs">
-                        <div>
-                          <label className="block text-slate-500 font-semibold mb-1">Sujet de votre demande</label>
-                          <select 
-                            value={helpSubject}
-                            onChange={e => setHelpSubject(e.target.value)}
-                            className="w-full border border-slate-200 p-2 rounded-lg text-slate-800 bg-white"
+                          <div>
+                            <label className="block text-slate-500 font-semibold mb-1">Votre message</label>
+                            <textarea 
+                              required
+                              rows={3}
+                              placeholder={helpSubject === 'réservation' ? "Veuillez préciser la date, l'heure et le nom du prestataire de la réservation concernée..." : "Décrivez votre demande en détail ici..."}
+                              value={helpMessage}
+                              onChange={e => setHelpMessage(e.target.value)}
+                              className="w-full border border-slate-200 p-2.5 rounded-lg text-slate-800 bg-slate-50"
+                            />
+                          </div>
+                          <button 
+                            type="submit"
+                            className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2 rounded-lg transition-all cursor-pointer"
                           >
-                            <option value="général">Question générale sur la plateforme</option>
-                            <option value="réservation">Question relative à une réservation (veuillez préciser laquelle ci-dessous)</option>
-                            <option value="paiement">Question relative aux paiements et acomptes</option>
-                            <option value="technique">Bug ou problème technique sur l'application</option>
-                            <option value="autre">Autre demande</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-slate-500 font-semibold mb-1">Votre message</label>
-                          <textarea 
-                            required
-                            rows={3}
-                            placeholder={helpSubject === 'réservation' ? "Veuillez préciser la date, l'heure et le nom du prestataire de la réservation concernée..." : "Décrivez votre demande en détail ici..."}
-                            value={helpMessage}
-                            onChange={e => setHelpMessage(e.target.value)}
-                            className="w-full border border-slate-200 p-2.5 rounded-lg text-slate-800 bg-slate-50"
-                          />
-                        </div>
-                        <button 
-                          type="submit"
-                          className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2 rounded-lg transition-all cursor-pointer"
-                        >
-                          Envoyer la demande d'aide
-                        </button>
-                      </form>
-                    </div>
+                            Envoyer la demande d'aide
+                          </button>
+                        </form>
+                      </div>
+                    )}
 
                     {/* Legal policies */}
                     <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-xs">
@@ -3123,74 +3572,62 @@ export default function App() {
                     </div>
 
                     {/* Account Controls */}
-                    <div className="space-y-3 mb-6">
-                      {/* Logout */}
-                      <button
-                        type="button"
-                        onClick={handleLogout}
-                        className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        Se déconnecter de mon compte
-                      </button>
-
-                      {/* Delete Account */}
-                      {!showDeleteConfirm ? (
+                    {session.isLoggedIn && (
+                      <div className="space-y-3 mb-6">
+                        {/* Logout */}
                         <button
                           type="button"
-                          onClick={() => {
-                            if (session.email?.toLowerCase() === 'ozenia.pro@gmail.com') {
-                              alert("Le compte d'administration principal ne peut pas être supprimé.");
-                              return;
-                            }
-                            setShowDeleteConfirm(true);
-                          }}
-                          className="w-full bg-rose-50 hover:bg-rose-100 border border-rose-100 text-rose-700 font-semibold py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                          onClick={handleLogout}
+                          className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                         >
-                          <Trash2 className="w-4 h-4" />
-                          Supprimer mon compte définitivement
+                          <LogOut className="w-4 h-4" />
+                          Se déconnecter de mon compte
                         </button>
-                      ) : (
-                        <div className="bg-rose-50 border border-rose-100 rounded-xl p-4 text-center space-y-3 animate-fade-in">
-                          <p className="text-rose-800 text-xs font-bold leading-normal">
-                            ⚠️ Action irréversible : Êtes-vous absolument sûr de vouloir supprimer définitivement votre compte ? Toutes vos données seront perdues.
-                          </p>
-                          <div className="flex gap-2 justify-center">
-                            <button
-                              type="button"
-                              onClick={() => setShowDeleteConfirm(false)}
-                              className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-1.5 px-4 rounded-xl text-xs transition-all"
-                            >
-                              Annuler
-                            </button>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                await handleDeleteAccount(session.email);
-                                setShowDeleteConfirm(false);
-                              }}
-                              className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-1.5 px-4 rounded-xl text-xs transition-all shadow-xs"
-                            >
-                              Oui, supprimer mon compte
-                            </button>
+
+                        {/* Delete Account */}
+                        {!showDeleteConfirm ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (session.email?.toLowerCase() === 'ozenia.pro@gmail.com') {
+                                alert("Le compte d'administration principal ne peut pas être supprimé.");
+                                return;
+                              }
+                              setShowDeleteConfirm(true);
+                            }}
+                            className="w-full bg-rose-50 hover:bg-rose-100 border border-rose-100 text-rose-700 font-semibold py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Supprimer mon compte définitivement
+                          </button>
+                        ) : (
+                          <div className="bg-rose-50 border border-rose-100 rounded-xl p-4 text-center space-y-3 animate-fade-in">
+                            <p className="text-rose-800 text-xs font-bold leading-normal">
+                              ⚠️ Action irréversible : Êtes-vous absolument sûr de vouloir supprimer définitivement votre compte ? Toutes vos données seront perdues.
+                            </p>
+                            <div className="flex gap-2 justify-center">
+                              <button
+                                type="button"
+                                onClick={() => setShowDeleteConfirm(false)}
+                                className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-1.5 px-4 rounded-xl text-xs transition-all"
+                              >
+                                Annuler
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  await handleDeleteAccount(session.email);
+                                  setShowDeleteConfirm(false);
+                                }}
+                                className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-1.5 px-4 rounded-xl text-xs transition-all shadow-xs"
+                              >
+                                Oui, supprimer mon compte
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-16 bg-white rounded-2xl border border-slate-100 p-6 shadow-xs">
-                    <Lock className="w-12 h-12 text-[#0f4c81] mx-auto mb-3 opacity-60" />
-                    <h3 className="text-slate-700 font-semibold mb-1">Connexion requise</h3>
-                    <p className="text-slate-400 text-xs">Veuillez vous connecter pour voir vos paramètres de profil et gérer votre compte.</p>
-                    <button 
-                      onClick={() => setShowLoginModal(true)} 
-                      className="mt-4 bg-[#0f4c81] text-white font-semibold text-xs py-2.5 px-5 rounded-lg shadow-md hover:bg-[#1a5b94]"
-                    >
-                      Se connecter maintenant
-                    </button>
-                  </div>
-                )}
+                        )}
+                      </div>
+                    )}
               </div>
             )}
           </main>
@@ -3225,6 +3662,14 @@ export default function App() {
               >
                 <Plus className="w-3.5 h-3.5" />
                 Créer Données
+              </button>
+              <button
+                id="btn_admin_settings"
+                onClick={() => setAdminTab('settings')}
+                className={`flex-1 py-2 rounded-lg font-bold transition-all flex items-center justify-center gap-1.5 ${adminTab === 'settings' ? 'bg-[#0f4c81] text-white shadow-xs' : 'text-slate-600 hover:text-slate-800'}`}
+              >
+                <Settings className="w-3.5 h-3.5" />
+                Logo / Marque
               </button>
             </div>
 
@@ -3727,6 +4172,16 @@ export default function App() {
                         className="w-full border border-slate-200 p-2 rounded-lg text-slate-800"
                       />
                     </div>
+                    <div>
+                      <label className="block text-slate-500 font-semibold mb-1">Durée estimée de la prestation (ex: 1h 30, 45 min)</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ex: 1h 30" 
+                        value={newPostForm.duration}
+                        onChange={e => setNewPostForm({ ...newPostForm, duration: e.target.value })}
+                        className="w-full border border-slate-200 p-2 rounded-lg text-slate-800"
+                      />
+                    </div>
 
                     <button 
                       type="submit"
@@ -4082,6 +4537,10 @@ export default function App() {
                   </div>
                 </div>
               </div>
+            )}
+
+            {adminTab === 'settings' && (
+              <AdminSettingsTab />
             )}
           </main>
         )}
@@ -4487,7 +4946,7 @@ export default function App() {
                   <div className="flex justify-between items-center border-t border-slate-200/50 pt-2 text-slate-700">
                     <div>
                       <p className="font-bold">{bookingTarget.service.name}</p>
-                      <span className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5"><Clock className="w-3 h-3" /> {bookingTarget.service.duration}</span>
+                      <span className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5"><Clock className="w-3 h-3" /> {bookingTarget.post?.duration || bookingTarget.service.duration}</span>
                     </div>
                     <span className="text-sm font-black text-[#0f4c81]">{bookingTargetPrice}€</span>
                   </div>
@@ -4881,32 +5340,35 @@ export default function App() {
 }
 
 export function FudepLogo({ className = "w-10 h-10" }: { className?: string }) {
+  const [logoSrc, setLogoSrc] = useState<string>("/fudep_puzzle_logo_1783249722185.jpg");
+
+  useEffect(() => {
+    // Load initial custom logo from localStorage if present
+    const custom = localStorage.getItem('fudep_custom_logo');
+    if (custom) {
+      setLogoSrc(custom);
+    }
+
+    const handleUpdate = () => {
+      const updated = localStorage.getItem('fudep_custom_logo');
+      setLogoSrc(updated || "/fudep_puzzle_logo_1783249722185.jpg");
+    };
+
+    window.addEventListener('fudep_logo_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
+    return () => {
+      window.removeEventListener('fudep_logo_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
   return (
-    <svg 
-      viewBox="0 0 100 100" 
-      className={className} 
-      fill="none" 
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      {/* Piece 4 (Bottom Right, Dark Blue) */}
-      <rect x="50" y="60" width="32" height="32" rx="6" fill="#0f4c81" />
-      
-      {/* Piece 2 (Top Right, Light Blue) */}
-      <rect x="50" y="28" width="32" height="32" rx="6" fill="#8bc6fc" />
-      <circle cx="66" cy="15" r="6.5" fill="#8bc6fc" />
-      <rect x="64" y="19" width="4" height="10" fill="#8bc6fc" rx="1" />
-      <circle cx="66" cy="60" r="4.5" fill="#8bc6fc" />
-      
-      {/* Piece 1 (Top Left, Dark Blue) */}
-      <rect x="18" y="28" width="32" height="32" rx="6" fill="#0f4c81" />
-      <circle cx="34" cy="15" r="6.5" fill="#0f4c81" />
-      <rect x="32" y="19" width="4" height="10" fill="#0f4c81" rx="1" />
-      <circle cx="50" cy="44" r="4.5" fill="#0f4c81" />
-      
-      {/* Piece 3 (Bottom Left, Light Blue) */}
-      <rect x="18" y="60" width="32" height="32" rx="6" fill="#8bc6fc" />
-      <circle cx="34" cy="60" r="4.5" fill="#8bc6fc" />
-      <circle cx="50" cy="76" r="4.5" fill="#8bc6fc" />
-    </svg>
+    <img 
+      src={logoSrc} 
+      alt="Fudep Logo" 
+      className={`${className} object-contain`}
+      referrerPolicy="no-referrer"
+    />
   );
 }

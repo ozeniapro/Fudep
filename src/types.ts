@@ -30,6 +30,7 @@ export interface Post {
   tags: string[];
   date: string;
   price?: number;
+  duration?: string;
 }
 
 export interface BookingRequest {
