@@ -5340,7 +5340,7 @@ export default function App() {
 }
 
 export function FudepLogo({ className = "w-10 h-10" }: { className?: string }) {
-  const [logoSrc, setLogoSrc] = useState<string>("/fudep_puzzle_logo_1783249722185.jpg");
+  const [logoSrc, setLogoSrc] = useState<string>("/fudep_puzzle_logo_v3.jpg");
 
   useEffect(() => {
     // Load initial custom logo from localStorage if present
@@ -5351,7 +5351,7 @@ export function FudepLogo({ className = "w-10 h-10" }: { className?: string }) {
 
     const handleUpdate = () => {
       const updated = localStorage.getItem('fudep_custom_logo');
-      setLogoSrc(updated || "/fudep_puzzle_logo_1783249722185.jpg");
+      setLogoSrc(updated || "/fudep_puzzle_logo_v3.jpg");
     };
 
     window.addEventListener('fudep_logo_updated', handleUpdate);
@@ -5369,6 +5369,12 @@ export function FudepLogo({ className = "w-10 h-10" }: { className?: string }) {
       alt="Fudep Logo" 
       className={`${className} object-contain`}
       referrerPolicy="no-referrer"
+      onError={(e) => {
+        // Fallback if custom logo fails to load
+        if (logoSrc !== "/fudep_puzzle_logo_v3.jpg") {
+          setLogoSrc("/fudep_puzzle_logo_v3.jpg");
+        }
+      }}
     />
   );
 }
