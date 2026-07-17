@@ -49,7 +49,7 @@ function parseImageUrl(url: string): { cleanUrl: string; isConverted: boolean; s
 export function AdminSettingsTab() {
   const [logoOption, setLogoOption] = useState<'upload' | 'url'>('upload');
   const [logoUrl, setLogoUrl] = useState<string>('');
-  const [previewUrl, setPreviewUrl] = useState<string>('/fudep_puzzle_logo_v3.jpg');
+  const [previewUrl, setPreviewUrl] = useState<string>('/fudep_puzzle_logo_1783249722185.jpg');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [dragActive, setDragActive] = useState<boolean>(false);
   
@@ -137,7 +137,7 @@ export function AdminSettingsTab() {
   const handleReset = () => {
     if (window.confirm("Voulez-vous restaurer le logo officiel de Fudep par défaut ?")) {
       localStorage.removeItem('fudep_custom_logo');
-      setPreviewUrl('/fudep_puzzle_logo_v3.jpg');
+      setPreviewUrl('/fudep_puzzle_logo_1783249722185.jpg');
       setLogoUrl('');
       setConversionInfo({ isConverted: false, serviceName: '' });
       setHasPreviewError(false);
@@ -150,7 +150,7 @@ export function AdminSettingsTab() {
   const handleUrlInputChange = (val: string) => {
     setLogoUrl(val);
     if (!val) {
-      setPreviewUrl('/fudep_puzzle_logo_v3.jpg');
+      setPreviewUrl('/fudep_puzzle_logo_1783249722185.jpg');
       setConversionInfo({ isConverted: false, serviceName: '' });
       setHasPreviewError(false);
       return;
@@ -346,7 +346,7 @@ export function AdminSettingsTab() {
         <ol className="text-[11px] text-slate-500 list-decimal pl-4 space-y-1.5 leading-relaxed">
           <li>
             Renommez votre propre image de logo avec le nom exact : 
-            <strong className="text-slate-800 font-mono block mt-0.5 bg-white py-1 px-1.5 rounded border border-slate-200 select-all">fudep_puzzle_logo_v3.jpg</strong>
+            <strong className="text-slate-800 font-mono block mt-0.5 bg-white py-1 px-1.5 rounded border border-slate-200 select-all">fudep_puzzle_logo_1783249722185.jpg</strong>
           </li>
           <li>
             Dans l'explorateur de fichiers d'AI Studio à gauche, allez dans le dossier <strong className="text-slate-700">public/</strong>.
