@@ -5340,18 +5340,28 @@ export default function App() {
 }
 
 export function FudepLogo({ className = "w-10 h-10" }: { className?: string }) {
-  const [logoSrc, setLogoSrc] = useState<string>("/fudep_puzzle_logo_1783249722185.jpg");
+  const [logoSrc, setLogoSrc] = useState<string>("/Logo fudep transparent.png");
 
   useEffect(() => {
     // Load initial custom logo from localStorage if present
     const custom = localStorage.getItem('fudep_custom_logo');
-    if (custom) {
+    if (custom && custom !== "/fudep_puzzle_logo_v3.jpg" && custom !== "/fudep_puzzle_logo_1783249722185.jpg") {
       setLogoSrc(custom);
+    } else {
+      // Clean up legacy defaults from local storage
+      if (custom === "/fudep_puzzle_logo_v3.jpg" || custom === "/fudep_puzzle_logo_1783249722185.jpg") {
+        localStorage.removeItem('fudep_custom_logo');
+      }
+      setLogoSrc("/Logo fudep transparent.png");
     }
 
     const handleUpdate = () => {
       const updated = localStorage.getItem('fudep_custom_logo');
-      setLogoSrc(updated || "/fudep_puzzle_logo_1783249722185.jpg");
+      if (updated && updated !== "/fudep_puzzle_logo_v3.jpg" && updated !== "/fudep_puzzle_logo_1783249722185.jpg") {
+        setLogoSrc(updated);
+      } else {
+        setLogoSrc("/Logo fudep transparent.png");
+      }
     };
 
     window.addEventListener('fudep_logo_updated', handleUpdate);
@@ -5371,9 +5381,9 @@ export function FudepLogo({ className = "w-10 h-10" }: { className?: string }) {
       referrerPolicy="no-referrer"
       onError={(e) => {
         // Fallback if custom logo fails to load
-        if (logoSrc !== "/fudep_puzzle_logo_1783249722185.jpg") {
+        if (logoSrc !== "/Logo fudep transparent.png") {
           localStorage.removeItem('fudep_custom_logo');
-          setLogoSrc("/fudep_puzzle_logo_1783249722185.jpg");
+          setLogoSrc("/Logo fudep transparent.png");
         }
       }}
     />
