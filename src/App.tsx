@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import defaultFudepLogo from './assets/images/logo_fudep_transparent.png';
 import { 
   Heart, 
   Share2, 
@@ -5340,27 +5341,27 @@ export default function App() {
 }
 
 export function FudepLogo({ className = "w-10 h-10" }: { className?: string }) {
-  const [logoSrc, setLogoSrc] = useState<string>("/Logo fudep transparent.png");
+  const [logoSrc, setLogoSrc] = useState<string>(defaultFudepLogo);
 
   useEffect(() => {
     // Load initial custom logo from localStorage if present
     const custom = localStorage.getItem('fudep_custom_logo');
-    if (custom && custom !== "/fudep_puzzle_logo_v3.jpg" && custom !== "/fudep_puzzle_logo_1783249722185.jpg") {
+    if (custom && custom !== "/fudep_puzzle_logo_v3.jpg" && custom !== "/fudep_puzzle_logo_1783249722185.jpg" && custom !== "/Logo fudep transparent.png" && custom !== "/logo_fudep_transparent.png") {
       setLogoSrc(custom);
     } else {
       // Clean up legacy defaults from local storage
-      if (custom === "/fudep_puzzle_logo_v3.jpg" || custom === "/fudep_puzzle_logo_1783249722185.jpg") {
+      if (custom) {
         localStorage.removeItem('fudep_custom_logo');
       }
-      setLogoSrc("/Logo fudep transparent.png");
+      setLogoSrc(defaultFudepLogo);
     }
 
     const handleUpdate = () => {
       const updated = localStorage.getItem('fudep_custom_logo');
-      if (updated && updated !== "/fudep_puzzle_logo_v3.jpg" && updated !== "/fudep_puzzle_logo_1783249722185.jpg") {
+      if (updated && updated !== "/fudep_puzzle_logo_v3.jpg" && updated !== "/fudep_puzzle_logo_1783249722185.jpg" && updated !== "/Logo fudep transparent.png" && updated !== "/logo_fudep_transparent.png") {
         setLogoSrc(updated);
       } else {
-        setLogoSrc("/Logo fudep transparent.png");
+        setLogoSrc(defaultFudepLogo);
       }
     };
 
@@ -5375,15 +5376,15 @@ export function FudepLogo({ className = "w-10 h-10" }: { className?: string }) {
 
   return (
     <img 
-      src={logoSrc} 
+      src={logoSrc || defaultFudepLogo} 
       alt="Fudep Logo" 
       className={`${className} object-contain`}
       referrerPolicy="no-referrer"
-      onError={(e) => {
+      onError={() => {
         // Fallback if custom logo fails to load
-        if (logoSrc !== "/Logo fudep transparent.png") {
+        if (logoSrc !== defaultFudepLogo) {
           localStorage.removeItem('fudep_custom_logo');
-          setLogoSrc("/Logo fudep transparent.png");
+          setLogoSrc(defaultFudepLogo);
         }
       }}
     />

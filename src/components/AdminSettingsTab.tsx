@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, Settings, RotateCcw, Check, Image, AlertCircle, FileText } from 'lucide-react';
+import defaultFudepLogo from '../assets/images/logo_fudep_transparent.png';
 
 // Helper function to automatically convert share links from Google Drive & Dropbox into raw direct images
 function parseImageUrl(url: string): { cleanUrl: string; isConverted: boolean; serviceName: string } {
@@ -49,7 +50,7 @@ function parseImageUrl(url: string): { cleanUrl: string; isConverted: boolean; s
 export function AdminSettingsTab() {
   const [logoOption, setLogoOption] = useState<'upload' | 'url'>('upload');
   const [logoUrl, setLogoUrl] = useState<string>('');
-  const [previewUrl, setPreviewUrl] = useState<string>('/Logo fudep transparent.png');
+  const [previewUrl, setPreviewUrl] = useState<string>(defaultFudepLogo);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [dragActive, setDragActive] = useState<boolean>(false);
   
@@ -59,7 +60,7 @@ export function AdminSettingsTab() {
 
   useEffect(() => {
     const savedLogo = localStorage.getItem('fudep_custom_logo');
-    if (savedLogo && savedLogo !== "/fudep_puzzle_logo_v3.jpg" && savedLogo !== "/fudep_puzzle_logo_1783249722185.jpg") {
+    if (savedLogo && savedLogo !== "/fudep_puzzle_logo_v3.jpg" && savedLogo !== "/fudep_puzzle_logo_1783249722185.jpg" && savedLogo !== "/Logo fudep transparent.png" && savedLogo !== "/logo_fudep_transparent.png") {
       setPreviewUrl(savedLogo);
       if (savedLogo.startsWith('http')) {
         setLogoUrl(savedLogo);
@@ -72,10 +73,10 @@ export function AdminSettingsTab() {
         }
       }
     } else {
-      if (savedLogo === "/fudep_puzzle_logo_v3.jpg" || savedLogo === "/fudep_puzzle_logo_1783249722185.jpg") {
+      if (savedLogo) {
         localStorage.removeItem('fudep_custom_logo');
       }
-      setPreviewUrl('/Logo fudep transparent.png');
+      setPreviewUrl(defaultFudepLogo);
     }
   }, []);
 
@@ -142,7 +143,7 @@ export function AdminSettingsTab() {
   const handleReset = () => {
     if (window.confirm("Voulez-vous restaurer le logo officiel de Fudep par défaut ?")) {
       localStorage.removeItem('fudep_custom_logo');
-      setPreviewUrl('/Logo fudep transparent.png');
+      setPreviewUrl(defaultFudepLogo);
       setLogoUrl('');
       setConversionInfo({ isConverted: false, serviceName: '' });
       setHasPreviewError(false);
@@ -155,7 +156,7 @@ export function AdminSettingsTab() {
   const handleUrlInputChange = (val: string) => {
     setLogoUrl(val);
     if (!val) {
-      setPreviewUrl('/Logo fudep transparent.png');
+      setPreviewUrl(defaultFudepLogo);
       setConversionInfo({ isConverted: false, serviceName: '' });
       setHasPreviewError(false);
       return;
