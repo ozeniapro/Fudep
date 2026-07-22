@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import defaultFudepLogo from './assets/images/logo_fudep_transparent.png';
+import { DEFAULT_FUDEP_LOGO_BASE64 } from './assets/defaultLogoBase64';
+import { fetchLogoFromDb } from './lib/firebaseSync';
 import { 
   Heart, 
   Share2, 
@@ -5341,27 +5343,35 @@ export default function App() {
 }
 
 export function FudepLogo({ className = "w-10 h-10" }: { className?: string }) {
-  const [logoSrc, setLogoSrc] = useState<string>(defaultFudepLogo);
+  const [logoSrc, setLogoSrc] = useState<string>(DEFAULT_FUDEP_LOGO_BASE64);
 
   useEffect(() => {
-    // Load initial custom logo from localStorage if present
+    // 1. Load initial custom logo from localStorage if present
     const custom = localStorage.getItem('fudep_custom_logo');
-    if (custom && custom !== "/fudep_puzzle_logo_v3.jpg" && custom !== "/fudep_puzzle_logo_1783249722185.jpg" && custom !== "/Logo fudep transparent.png" && custom !== "/logo_fudep_transparent.png") {
+    if (custom && custom.length > 20) {
       setLogoSrc(custom);
     } else {
-      // Clean up legacy defaults from local storage
-      if (custom) {
-        localStorage.removeItem('fudep_custom_logo');
-      }
-      setLogoSrc(defaultFudepLogo);
+      setLogoSrc(DEFAULT_FUDEP_LOGO_BASE64);
     }
+
+    // 2. Load persistent global logo from Firestore
+    fetchLogoFromDb().then((dbLogo) => {
+      if (dbLogo && dbLogo.length > 20) {
+        setLogoSrc(dbLogo);
+        localStorage.setItem('fudep_custom_logo', dbLogo);
+      }
+    }).catch((err) => {
+      console.error("Failed to fetch logo from Firestore:", err);
+    });
 
     const handleUpdate = () => {
       const updated = localStorage.getItem('fudep_custom_logo');
-      if (updated && updated !== "/fudep_puzzle_logo_v3.jpg" && updated !== "/fudep_puzzle_logo_1783249722185.jpg" && updated !== "/Logo fudep transparent.png" && updated !== "/logo_fudep_transparent.png") {
+      if (updated && updated.length > 20) {
         setLogoSrc(updated);
       } else {
-        setLogoSrc(defaultFudepLogo);
+        fetchLogoFromDb().then((dbLogo) => {
+          if (dbLogo) setLogoSrc(dbLogo);
+        });
       }
     };
 
@@ -5376,15 +5386,15 @@ export function FudepLogo({ className = "w-10 h-10" }: { className?: string }) {
 
   return (
     <img 
-      src={logoSrc || defaultFudepLogo} 
+      src={logoSrc || DEFAULT_FUDEP_LOGO_BASE64} 
       alt="Fudep Logo" 
       className={`${className} object-contain`}
       referrerPolicy="no-referrer"
       onError={() => {
-        // Fallback if custom logo fails to load
-        if (logoSrc !== defaultFudepLogo) {
+        // Safe fallback to built-in Base64 if a custom image URL fails
+        if (logoSrc !== DEFAULT_FUDEP_LOGO_BASE64) {
           localStorage.removeItem('fudep_custom_logo');
-          setLogoSrc(defaultFudepLogo);
+          setLogoSrc(DEFAULT_FUDEP_LOGO_BASE64);
         }
       }}
     />

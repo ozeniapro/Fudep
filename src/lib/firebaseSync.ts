@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { INITIAL_TECHNICIANS, INITIAL_POSTS } from '../mockData';
 import { NailTechnician, Post, BookingRequest, UserAccount, Analytics, FAQItem } from '../types';
+import { DEFAULT_FUDEP_LOGO_BASE64 } from '../assets/defaultLogoBase64';
 
 export enum OperationType {
   CREATE = 'create',
@@ -158,6 +159,13 @@ export async function seedDatabaseIfEmpty() {
         password: '9bcf308b2eb594412c9676da0594dbf068305c48197779fb0cc7b952f4ec62b0'
       });
 
+      // Seed default logo
+      const logoRef = doc(db, 'settings', 'logo');
+      batch.set(logoRef, {
+        logoUrl: DEFAULT_FUDEP_LOGO_BASE64,
+        updatedAt: new Date().toLocaleString('fr-FR')
+      });
+
       // Mark as seeded
       batch.set(seededRef, { value: true, createdAt: new Date().toLocaleString('fr-FR') });
 
@@ -236,6 +244,30 @@ export async function fetchAccounts(): Promise<UserAccount[]> {
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, path);
     return [];
+  }
+}
+
+export async function fetchLogoFromDb(): Promise<string> {
+  try {
+    const logoDoc = await getDoc(doc(db, 'settings', 'logo'));
+    if (logoDoc.exists() && logoDoc.data()?.logoUrl) {
+      return logoDoc.data().logoUrl;
+    }
+  } catch (error) {
+    console.error("Error fetching logo from Firestore:", error);
+  }
+  return DEFAULT_FUDEP_LOGO_BASE64;
+}
+
+export async function saveLogoToDb(logoUrlOrBase64: string): Promise<void> {
+  try {
+    await setDoc(doc(db, 'settings', 'logo'), {
+      logoUrl: logoUrlOrBase64,
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Error saving logo to Firestore:", error);
+    handleFirestoreError(error, OperationType.WRITE, 'settings/logo');
   }
 }
 

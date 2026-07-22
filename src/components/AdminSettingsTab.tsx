@@ -1,6 +1,49 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, Settings, RotateCcw, Check, Image, AlertCircle, FileText } from 'lucide-react';
-import defaultFudepLogo from '../assets/images/logo_fudep_transparent.png';
+import { Upload, Settings, RotateCcw, Check, Image as ImageIcon, AlertCircle, FileText } from 'lucide-react';
+import { DEFAULT_FUDEP_LOGO_BASE64 } from '../assets/defaultLogoBase64';
+import { fetchLogoFromDb, saveLogoToDb } from '../lib/firebaseSync';
+
+// Canvas compressor helper: resizes image to max 512px PNG Data URL for high performance & 100% offline persistence
+function compressImageToDataUrl(file: File, maxSize = 512): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/png', 0.9);
+          resolve(dataUrl);
+        } else {
+          resolve(e.target?.result as string || DEFAULT_FUDEP_LOGO_BASE64);
+        }
+      };
+      img.onerror = () => resolve(e.target?.result as string || DEFAULT_FUDEP_LOGO_BASE64);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 // Helper function to automatically convert share links from Google Drive & Dropbox into raw direct images
 function parseImageUrl(url: string): { cleanUrl: string; isConverted: boolean; serviceName: string } {
@@ -8,7 +51,6 @@ function parseImageUrl(url: string): { cleanUrl: string; isConverted: boolean; s
   let cleanUrl = url.trim();
 
   // 1. Google Drive Conversion
-  // Match link structure: drive.google.com/file/d/[ID]/view or similar
   const driveFileMatch = cleanUrl.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
   if (driveFileMatch && driveFileMatch[1]) {
     return {
@@ -17,7 +59,6 @@ function parseImageUrl(url: string): { cleanUrl: string; isConverted: boolean; s
       serviceName: 'Google Drive'
     };
   }
-  // Match link structure: drive.google.com/open?id=[ID]
   const driveOpenMatch = cleanUrl.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
   if (driveOpenMatch && driveOpenMatch[1]) {
     return {
@@ -28,7 +69,6 @@ function parseImageUrl(url: string): { cleanUrl: string; isConverted: boolean; s
   }
 
   // 2. Dropbox Conversion
-  // Match links containing dropbox.com
   if (cleanUrl.includes('dropbox.com')) {
     let parsed = cleanUrl.replace('www.dropbox.com', 'dl.dropboxusercontent.com');
     parsed = parsed.replace('?dl=0', '').replace('&dl=0', '');
@@ -50,53 +90,68 @@ function parseImageUrl(url: string): { cleanUrl: string; isConverted: boolean; s
 export function AdminSettingsTab() {
   const [logoOption, setLogoOption] = useState<'upload' | 'url'>('upload');
   const [logoUrl, setLogoUrl] = useState<string>('');
-  const [previewUrl, setPreviewUrl] = useState<string>(defaultFudepLogo);
+  const [previewUrl, setPreviewUrl] = useState<string>(DEFAULT_FUDEP_LOGO_BASE64);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [dragActive, setDragActive] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
   
   // Custom states for helper diagnostics
   const [conversionInfo, setConversionInfo] = useState<{ isConverted: boolean; serviceName: string }>({ isConverted: false, serviceName: '' });
   const [hasPreviewError, setHasPreviewError] = useState<boolean>(false);
 
   useEffect(() => {
+    // 1. Instant check from localStorage
     const savedLogo = localStorage.getItem('fudep_custom_logo');
-    if (savedLogo && savedLogo !== "/fudep_puzzle_logo_v3.jpg" && savedLogo !== "/fudep_puzzle_logo_1783249722185.jpg" && savedLogo !== "/Logo fudep transparent.png" && savedLogo !== "/logo_fudep_transparent.png") {
+    if (savedLogo && savedLogo.length > 20) {
       setPreviewUrl(savedLogo);
       if (savedLogo.startsWith('http')) {
         setLogoUrl(savedLogo);
         setLogoOption('url');
-        
-        // run through parser to see if it's already a converted one or if we can double-check
         const parsed = parseImageUrl(savedLogo);
         if (parsed.isConverted) {
           setConversionInfo({ isConverted: true, serviceName: parsed.serviceName });
         }
       }
     } else {
-      if (savedLogo) {
-        localStorage.removeItem('fudep_custom_logo');
-      }
-      setPreviewUrl(defaultFudepLogo);
+      setPreviewUrl(DEFAULT_FUDEP_LOGO_BASE64);
     }
+
+    // 2. Fetch official logo persisted globally in Firestore
+    fetchLogoFromDb().then((logoFromDb) => {
+      if (logoFromDb && logoFromDb.length > 20) {
+        setPreviewUrl(logoFromDb);
+        if (logoFromDb.startsWith('http')) {
+          setLogoUrl(logoFromDb);
+        }
+        localStorage.setItem('fudep_custom_logo', logoFromDb);
+      }
+    }).catch(err => {
+      console.error("Failed to load logo from Firestore:", err);
+    });
   }, []);
 
-  const handleLogoSave = (urlToSave: string) => {
+  const handleLogoSave = async (urlToSave: string) => {
+    setIsSaving(true);
     try {
       if (!urlToSave) {
         localStorage.removeItem('fudep_custom_logo');
+        await saveLogoToDb(DEFAULT_FUDEP_LOGO_BASE64);
       } else {
         localStorage.setItem('fudep_custom_logo', urlToSave);
+        await saveLogoToDb(urlToSave);
       }
       
-      // Dispatch custom event to notify all FudepLogo components
+      // Dispatch custom event to notify all FudepLogo components across the app
       window.dispatchEvent(new Event('fudep_logo_updated'));
       
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 3000);
     } catch (e) {
-      console.error(e);
+      console.error("Save logo error:", e);
       setSaveStatus('error');
       setTimeout(() => setSaveStatus('idle'), 3000);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -107,16 +162,16 @@ export function AdminSettingsTab() {
     }
   };
 
-  const processFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
+  const processFile = async (file: File) => {
+    try {
+      const base64String = await compressImageToDataUrl(file, 512);
       setPreviewUrl(base64String);
       setConversionInfo({ isConverted: false, serviceName: '' });
       setHasPreviewError(false);
-      handleLogoSave(base64String);
-    };
-    reader.readAsDataURL(file);
+      await handleLogoSave(base64String);
+    } catch (err) {
+      console.error("Error compressing file:", err);
+    }
   };
 
   // Drag & Drop Handlers
@@ -140,13 +195,14 @@ export function AdminSettingsTab() {
     }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (window.confirm("Voulez-vous restaurer le logo officiel de Fudep par défaut ?")) {
       localStorage.removeItem('fudep_custom_logo');
-      setPreviewUrl(defaultFudepLogo);
+      setPreviewUrl(DEFAULT_FUDEP_LOGO_BASE64);
       setLogoUrl('');
       setConversionInfo({ isConverted: false, serviceName: '' });
       setHasPreviewError(false);
+      await saveLogoToDb(DEFAULT_FUDEP_LOGO_BASE64);
       window.dispatchEvent(new Event('fudep_logo_updated'));
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 3000);
@@ -156,7 +212,7 @@ export function AdminSettingsTab() {
   const handleUrlInputChange = (val: string) => {
     setLogoUrl(val);
     if (!val) {
-      setPreviewUrl(defaultFudepLogo);
+      setPreviewUrl(DEFAULT_FUDEP_LOGO_BASE64);
       setConversionInfo({ isConverted: false, serviceName: '' });
       setHasPreviewError(false);
       return;
@@ -172,7 +228,7 @@ export function AdminSettingsTab() {
     if (parsed.cleanUrl) {
       handleLogoSave(parsed.cleanUrl);
     } else {
-      handleLogoSave('');
+      handleLogoSave(DEFAULT_FUDEP_LOGO_BASE64);
     }
   };
 
@@ -259,7 +315,7 @@ export function AdminSettingsTab() {
               onClick={() => setLogoOption('url')}
               className={`flex-1 py-1.5 rounded-md font-bold transition-all flex items-center justify-center gap-1.5 ${logoOption === 'url' ? 'bg-white text-[#0f4c81] shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
             >
-              <Image className="w-3.5 h-3.5" />
+              <ImageIcon className="w-3.5 h-3.5" />
               Lien Image Internet
             </button>
           </div>
